@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LoRa Management Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f7fa;
+      margin: 0;
+      padding: 0;
+    }
+
+    header {
+      background-color: #35495e;
+      color: #fff;
+      padding: 20px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .container {
+      padding: 30px;
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+    th, td {
+      padding: 16px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+
+    th {
+      background-color: #007BFF;
+      color: white;
+    }
+
+    tr:hover {
+      background-color: #f1f1f1;
+    }
+
+    .status-online {
+      color: green;
+      font-weight: bold;
+    }
+
+    .status-offline {
+      color: red;
+      font-weight: bold;
+    }
+
+    .actions button {
+      padding: 6px 12px;
+      margin-right: 5px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .send-btn {
+      background-color: #28a745;
+      color: white;
+    }
+
+    .view-btn {
+      background-color: #17a2b8;
+      color: white;
+    }
+
+    @media (max-width: 768px) {
+      th, td {
+        padding: 10px;
+      }
+
+      .actions button {
+        display: block;
+        margin-bottom: 5px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    📡 LoRa Management Dashboard
+  </header>
+
+  <div class="container">
+    <table>
+      <thead>
+        <tr>
+          <th>Node ID</th>
+          <th>Status</th>
+          <th>RSSI</th>
+          <th>Last Seen</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="deviceTable">
+        <!-- Devices will be added here -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // Sample data
+    const devices = [
+      { id: "Node-001", status: "online", rssi: "-67 dBm", lastSeen: "10 seconds ago" },
+      { id: "Node-002", status: "offline", rssi: "-", lastSeen: "5 hours ago" },
+      { id: "Node-003", status: "online", rssi: "-72 dBm", lastSeen: "20 seconds ago" },
+    ];
+
+    const table = document.getElementById("deviceTable");
+
+    devices.forEach(device => {
+      const row = document.createElement("tr");
+
+      row.innerHTML = `
+        <td>${device.id}</td>
+        <td class="${device.status === 'online' ? 'status-online' : 'status-offline'}">
+          ${device.status}
+        </td>
+        <td>${device.rssi}</td>
+        <td>${device.lastSeen}</td>
+        <td class="actions">
+          <button class="send-btn" onclick="alert('Send command to ${device.id}')">Send</button>
+          <button class="view-btn" onclick="alert('Viewing ${device.id} details')">View</button>
+        </td>
+      `;
+
+      table.appendChild(row);
+    });
+  </script>
+
+</body>
+</html>
+

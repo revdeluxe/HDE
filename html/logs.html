@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Logs</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      padding: 30px;
+      background: #eef2f5;
+    }
+
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    .log-wrapper {
+      max-width: 900px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e3e3e3;
+      text-align: left;
+    }
+
+    th {
+      background: #0077cc;
+      color: white;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+
+    tr:hover {
+      background: #f9f9f9;
+    }
+
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls input, .controls button {
+      padding: 10px 14px;
+      font-size: 15px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    .controls input {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .controls button {
+      background: #0077cc;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .controls button:hover {
+      background: #005fa3;
+    }
+
+    @media (max-width: 600px) {
+      .controls {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h2>📋 Admin Logs Dashboard</h2>
+
+  <div class="log-wrapper">
+    <div class="controls">
+      <input type="text" id="username" placeholder="Enter Username">
+      <button onclick="loginUser()">Login</button>
+      <button onclick="performAction()">Add Action</button>
+      <button onclick="logoutUser()">Logout</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Login Time</th>
+          <th>Logout Time</th>
+          <th>Last Action</th>
+        </tr>
+      </thead>
+      <tbody id="logTableBody">
+        <!-- User logs will appear here -->
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    let currentUser = null;
+    let logs = [];
+
+    function formatTime(date = new Date()) {
+      return date.toLocaleString(); // "MM/DD/YYYY, HH:MM:SS"
+    }
+
+    function loginUser() {
+      const username = document.getElementById('username').value.trim();
+      if (!username) return alert("Enter username to login!");
+
+      currentUser = {
+        username,
+        loginTime: formatTime(),
+        logoutTime: '',
+        lastAction: 'Logged In'
+      };
+
+      logs.push(currentUser);
+      updateTable();
+    }
+
+    function performAction() {
+      if (!currentUser) return alert("No user is currently logged in.");
+      currentUser.lastAction = "Performed action at " + formatTime();
+      updateTable();
+    }
+
+    function logoutUser() {
+      if (!currentUser) return alert("No user is currently logged in.");
+
+      currentUser.logoutTime = formatTime();
+      currentUser.lastAction = "Logged Out";
+      updateTable();
+      currentUser = null;
+    }
+
+    function updateTable() {
+      const tbody = document.getElementById("logTableBody");
+      tbody.innerHTML = "";
+
+      logs.forEach(log => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${log.username}</td>
+            <td>${log.loginTime}</td>
+            <td>${log.logoutTime || '-'}</td>
+            <td>${log.lastAction}</td>
+          </tr>
+        `;
+      });
+    }
+  </script>
+
+</body>
+</html>
+
+
