@@ -1,117 +1,130 @@
-import { Pool } from 'pg';
-import AmiClient from 'asterisk-ami';
-import dotenv from 'dotenv';
-import express from 'express';
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+require('dotenv').config();
+const { Pool } = require('pg');
+
 const app = express();
-const port = 3001;
-
-app.use(express.json());
-
-app.get('/data', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM your_table_name');
-        res.json(result.rows);
-    } catch (err) {
-        console.error('Error executing query:', err.stack);
-        res.status(500).send('Internal Server Error');
-    }
-});
-
-app.post('/login', async (req, res) => {
-    const { username, passphrase } = req.body;
-    try {
-        const result = await pool.query(
-            'SELECT * FROM "user".user_info WHERE username = $1 AND passphrase = $2',
-            [username, password]
-        );
-        if (result.rows.length > 0) {
-            const user = result.rows[0];
-
-            // Update user status to online
-            await pool.query(
-                'UPDATE "user".user_info SET status = $1 WHERE uid = $2',
-                ['online', user.uid]
-            );
-
-            // Log the successful login attempt
-            await pool.query(
-                `INSERT INTO "user".log_attempts (uid, success, ip_address, browser) 
-                 VALUES ($1, $2, $3, $4)`,
-                [user.uid, true, req.ip, req.headers['user-agent']]
-            );
-
-            res.json({ success: true, user });
-        } else {
-            // Log the failed login attempt
-            await pool.query(
-                `INSERT INTO "user".log_attempts (uid, success, ip_address, browser) 
-                 VALUES ($1, $2, $3, $4)`,
-                [null, false, req.ip, req.headers['user-agent']]
-            );
-
-            res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
-    } catch (err) {
-        console.error('Error executing login query:', err.stack);
-        res.status(500).send('Internal Server Error');
-    }
-});
-
-app.post('/log_attempts', async (req, res) => {
-    const { uid, success, ip_address, browser } = req.body;
-    try {
-        const result = await pool.query(
-            `INSERT INTO "user".log_attempts (uid, success, ip_address, browser) 
-             VALUES ($1, $2, $3, $4) RETURNING *`,
-            [uid, success, ip_address, browser]
-        );
-        res.json({ success: true, log: result.rows[0] });
-    } catch (err) {
-        console.error('Error logging attempt:', err.stack);
-        res.status(500).send('Internal Server Error');
-    }
-});
-
-app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-});
-dotenv.config();
-
-const ami = new AmiClient({ reconnect: true });
+const PORT = process.env.PORT || 3001;
 
 const pool = new Pool({
-    user: process.env.PG_USER || 'postgres',
-    host: process.env.PG_HOST || '127.0.0.1',
-    database: process.env.PG_DATABASE || 'master',
-    password: process.env.PG_PASSWORD || 'admin',
-    port: process.env.PG_PORT || 5432,
+  user: process.env.PG_USER,       // e.g. 'postgres'
+  host: process.env.PG_HOST,       // e.g. 'localhost'
+  database: process.env.PG_DB,     // e.g. 'mydb'
+  password: process.env.PG_PASS,   // your DB password
+  port: process.env.PG_PORT || 5432,
 });
 
-pool.connect((err, _, release) => {
-    if (err) {
-        console.error('Error connecting to PostgreSQL:', err.stack);
-    } else {
-        console.log('Connected to PostgreSQL');
-        release();
+// Middleware
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.urlencoded({ extended: true })); // ? For HTML form data
+app.use(express.json()); // For JSON (optional)
+app.use(cookieParser());
+
+app.post('/login', async (req, res) => {
+  const { username, passphrase } = req.body;
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const userAgent = req.headers['user-agent'] || 'Unknown';
+
+  console.log(`[${new Date().toISOString()}] Login attempt: username="${username}", IP=${ip}, UserAgent="${userAgent}"`);
+
+  let uid = null;     // will assign if user exists
+  let loginSuccess = false;
+
+  try {
+    if (!username || !passphrase) {
+      console.warn(`[${new Date().toISOString()}] Missing username or password`);
+      return res.status(400).json({ success: false, message: 'Missing username or password' });
     }
+
+    console.log(`[${new Date().toISOString()}] Querying user table for username="${username}" and active status`);
+    const userQuery = 'SELECT * FROM users WHERE username = $1 AND status = $2';
+    const userResult = await pool.query(userQuery, [username, 'active']);
+    console.log(`[${new Date().toISOString()}] User query result count: ${userResult.rows.length}`);
+
+    if (userResult.rows.length === 0) {
+      console.warn(`[${new Date().toISOString()}] No active user found with username="${username}"`);
+      // Log attempt - no user found
+      await pool.query(
+        `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
+         VALUES ($1, $2, $3, NOW(), $4, $5)`,
+        [null, username, false, ip, userAgent]
+      );
+      return res.status(401).json({ success: false, message: 'Invalid credentials or inactive account' });
+    }
+
+    const user = userResult.rows[0];
+    uid = user.uid;
+
+    console.log(`[${new Date().toISOString()}] Comparing passphrase for uid=${uid}`);
+    const match = await bcrypt.compare(passphrase, user.passphrase);
+
+    if (!match) {
+      console.warn(`[${new Date().toISOString()}] Password mismatch for uid=${uid}`);
+      // Log failed attempt for known user
+      await pool.query(
+        `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
+         VALUES ($1, $2, $3, NOW(), $4, $5)`,
+        [uid, username, false, ip, userAgent]
+      );
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    loginSuccess = true;
+    console.log(`[${new Date().toISOString()}] Login successful for uid=${uid}`);
+
+    // Update login_timestamp and device_info
+    const updateQuery = `
+      UPDATE users SET login_timestamp = NOW(), device_info = $1 WHERE uid = $2
+    `;
+    await pool.query(updateQuery, [userAgent, uid]);
+    console.log(`[${new Date().toISOString()}] Updated login timestamp and device info for uid=${uid}`);
+
+    // Log successful login
+    await pool.query(
+      `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
+       VALUES ($1, $2, $3, NOW(), $4, $5)`,
+      [uid, username, true, ip, userAgent]
+    );
+    console.log(`[${new Date().toISOString()}] Logged successful login attempt for uid=${uid}`);
+
+    // Set cookie and respond success
+    res.cookie('loggedIn', 'true', { httpOnly: true, sameSite: 'lax' });
+    res.json({ success: true, role: user.role, username: user.username });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Login error:`, error);
+
+    // Log failed attempt on server error
+    try {
+      await pool.query(
+        `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
+         VALUES ($1, $2, $3, NOW(), $4, $5)`,
+        [uid, username || null, false, ip, userAgent]
+      );
+      console.log(`[${new Date().toISOString()}] Logged failed login attempt due to error`);
+    } catch (logErr) {
+      console.error(`[${new Date().toISOString()}] Failed to log login attempt:`, logErr);
+    }
+
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
-// AMI connection
-ami.connect({
-    username: process.env.ASTERISK_USERNAME || 'admin',
-    secret: process.env.ASTERISK_SECRET || 'password',
-    host: process.env.ASTERISK_HOST || '127.0.0.1',
-    port: process.env.ASTERISK_PORT || 5038,
+app.post('/logout', (req, res) => {
+  res.clearCookie('loggedIn').json({ success: true });
 });
 
-ami.on('connect', () => {
-    console.log('Connected to Asterisk AMI');
+// Static assets
+const publicDir = path.join(__dirname, 'public');
+app.use(express.static(publicDir));
+
+// ? Safe fallback for unmatched routes
+app.use((req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'));
 });
 
-ami.on('event', (event) => {
-    console.log('AMI Event:', event);
-});
-
-ami.on('error', (err) => {
-    console.error('AMI Error:', err);
+// Start server
+app.listen(PORT, () => {
+  console.log(`?? Server running at http://localhost:${PORT}`);
 });

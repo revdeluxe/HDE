@@ -1,14 +1,28 @@
 {
+  "name": "hde",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/revdeluxe/HDE.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/revdeluxe/HDE/issues"
+  },
+  "homepage": "https://github.com/revdeluxe/HDE#readme",
   "dependencies": {
-    "asterisk-ami": "^0.1.0",
-    "asterisk-ami-client": "^1.1.5",
     "cookie-parser": "^1.4.7",
-    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
-    "js-cookies": "^1.0.4",
-    "pg": "^8.15.6",
-    "pouchdb": "^9.0.0",
-    "reactjs": "^1.0.0"
+    "path": "^0.12.7",
+    "pg": "^8.16.0",
+    "require": "^0.4.4"
   }
 }
