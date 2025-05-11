@@ -1,8 +1,14 @@
 {
   "dependencies": {
     "asterisk-ami": "^0.1.0",
+    "asterisk-ami-client": "^1.1.5",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
-    "pouchdb": "^9.0.0"
+    "js-cookies": "^1.0.4",
+    "pg": "^8.15.6",
+    "pouchdb": "^9.0.0",
+    "reactjs": "^1.0.0"
   }
 }
