@@ -4,49 +4,21 @@ const cookieParser = require('cookie-parser');
 require('dotenv').config();
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
-
+const http = require('http');
+const https = require('https');
 const app = express();
-const PORT = process.env.PORT || 3001;
 const DB_PATH = process.env.SQLITE_DB_PATH || path.join(__dirname, 'db', 'hde.sqlite3');
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
+const SSL_KEY = fs.readFileSync(path.join(__dirname, 'ssl', 'server.key'));
+const SSL_CERT = fs.readFileSync(path.join(__dirname, 'ssl', 'server.cert'));
+const PORT = process.env.PORT || 3001;
+const HTTPS_PORT = process.env.HTTPS_PORT || 443;
+const HTTP_PORT = process.env.HTTP_PORT || 80;
 
-// --- Max concurrent users for socket.io ---
-const MAX_CONCURRENT_USERS = 20; // Set your desired limit here
 
-io.use((socket, next) => {
-  if (io.engine.clientsCount > MAX_CONCURRENT_USERS) {
-    return next(new Error('Server is at max user capacity. Please try again later.'));
-  }
-  next();
-});
-
-// Track logged-in users and their socket IDs
-const userSocketMap = new Map(); // uid -> socket.id
-
-io.on('connection', (socket) => {
-  console.log('Client connected', socket.id);
-
-  // On login, client should emit 'register-user' with their uid
-  socket.on('register-user', (uid) => {
-    userSocketMap.set(uid, socket.id);
-    socket.uid = uid;
+https.createServer({ key: SSL_KEY, cert: SSL_CERT }, app)
+  .listen(HTTPS_PORT, () => {
+    console.log(`?? HTTPS Server running on port ${HTTPS_PORT}`);
   });
-
-  // On disconnect, remove from map
-  socket.on('disconnect', () => {
-    if (socket.uid) userSocketMap.delete(socket.uid);
-  });
-
-  // Call signaling: call-user event
-  socket.on('call-user', (data) => {
-    // data: { targetUid, ... }
-    const targetSocketId = userSocketMap.get(data.targetUid);
-    if (targetSocketId) {
-      io.to(targetSocketId).emit('incoming-call', data);
-    }
-  });
-});
 
 // Initialize SQLite DB
 if (!fs.existsSync(path.join(__dirname, 'db'))) {
@@ -200,7 +172,12 @@ app.get('/:file([\w\-]+\.html'), (req, res) => {
   }
 };
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`?? Server running at http://localhost:${PORT}`);
+
+// --- HTTP Server: Redirect to HTTPS ---
+http.createServer((req, res) => {
+  const host = req.headers['host'].replace(/:\d+$/, `:${HTTPS_PORT}`);
+  res.writeHead(301, { Location: `https://${host}${req.url}` });
+  res.end();
+}).listen(HTTP_PORT, () => {
+  console.log(`?? HTTP Server redirecting all traffic to HTTPS`);
 });

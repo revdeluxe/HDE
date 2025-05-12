@@ -50,39 +50,40 @@
     <div class="dialer mdl-shadow--2dp">
         <h4>WebRTC SIP Dialer</h4>
         <form action="#" onsubmit="return false;">
-            <div class="mdl-textfield mdl-js-textfield">
-                <input class="mdl-textfield__input" type="text" id="sip_uri" placeholder="sip:1001@asterisk.local">
-                <label class="mdl-textfield__label" for="sip_uri">SIP URI</label>
-            </div>
-            <div class="mdl-textfield mdl-js-textfield">
-                <input class="mdl-textfield__input" type="text" id="sip_user" placeholder="1000">
-                <label class="mdl-textfield__label" for="sip_user">SIP Username</label>
-            </div>
-            <div class="mdl-textfield mdl-js-textfield">
-                <input class="mdl-textfield__input" type="password" id="sip_pass" placeholder="password">
-                <label class="mdl-textfield__label" for="sip_pass">SIP Password</label>
-            </div>
-            <div class="mdl-textfield mdl-js-textfield">
-                <input class="mdl-textfield__input" type="text" id="sip_ws" placeholder="wss://your-asterisk-domain:8089/ws">
-                <label class="mdl-textfield__label" for="sip_ws">SIP WebSocket (WSS) URL</label>
-            </div>
-            <button type="button" id="register_btn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary">
-                Register
-            </button>
-            <hr>
-            <div class="mdl-textfield mdl-js-textfield">
-                <input class="mdl-textfield__input" type="text" id="dial_number" placeholder="1001">
-                <label class="mdl-textfield__label" for="dial_number">Dial Number</label>
-            </div>
-            <button type="button" id="call_btn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" disabled>
-                <i class="material-icons">call</i> Call
-            </button>
-            <button type="button" id="hangup_btn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect" disabled>
-                <i class="material-icons">call_end</i> Hang Up
-            </button>
-            <div id="status"></div>
-            <audio id="remoteAudio" autoplay></audio>
-        </form>
+        <div class="mdl-textfield mdl-js-textfield">
+            <input class="mdl-textfield__input" type="text" id="sip_uri" value="sip:1001@asterisk.local">
+            <label class="mdl-textfield__label" for="sip_uri">SIP URI</label>
+        </div>
+        <div class="mdl-textfield mdl-js-textfield">
+            <input class="mdl-textfield__input" type="text" id="sip_user" value="1000">
+            <label class="mdl-textfield__label" for="sip_user">SIP Username</label>
+        </div>
+        <div class="mdl-textfield mdl-js-textfield">
+            <input class="mdl-textfield__input" type="password" id="sip_pass" value="raspberry">
+            <label class="mdl-textfield__label" for="sip_pass">SIP Password</label>
+        </div>
+        <div class="mdl-textfield mdl-js-textfield">
+            <input class="mdl-textfield__input" type="text" id="sip_ws" value="wss://asterisk.local:8089/ws">
+            <label class="mdl-textfield__label" for="sip_ws">SIP WebSocket (WSS) URL</label>
+        </div>
+        <button type="button" id="register_btn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary">
+            Register
+        </button>
+        <hr>
+        <div class="mdl-textfield mdl-js-textfield">
+            <input class="mdl-textfield__input" type="text" id="dial_number" value="1001">
+            <label class="mdl-textfield__label" for="dial_number">Dial Number</label>
+        </div>
+        <button type="button" id="call_btn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" disabled>
+            <i class="material-icons">call</i> Call
+        </button>
+        <button type="button" id="hangup_btn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect" disabled>
+            <i class="material-icons">call_end</i> Hang Up
+        </button>
+        <div id="status"></div>
+        <audio id="remoteAudio" autoplay></audio>
+    </form>
+
     </div>
     <script>
         let ua = null;
