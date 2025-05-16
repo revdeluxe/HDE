@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Phonebook</title>
+    <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 8px; }
+        th { background: #f4f4f4; }
+        #dialer-iframe { width: 100%; height: 300px; border: 1px solid #888; display: none; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container z-depth-2">
+        <h5 class="blue-text text-darken-2" style="font-weight:500; margin-bottom:1.5em;">
+        <i class="material-icons left">person</i>
+        USER PANEL
+        </h5>
+        <div class="btn-group">
+        <a class="btn blue" href="rtc-dialer.html">
+            <i class="material-icons left">dialpad</i> DIALER
+        </a>
+        <a class="btn teal" href="phonebook.html">
+            <i class="material-icons left">contacts</i> CONTACT EXPLORER
+        </a>
+        <a class="btn red" href="emergency.html" title="Alerts the Administrators">
+            <i class="material-icons left">warning</i> EMERGENCY
+        </a>
+        <a class="btn-flat blue-text" href="#" onclick="logout()">
+            <i class="material-icons left">logout</i> Log Out
+        </a>
+        </div>
+    </div>
+    <h1>Phonebook</h1>
+    <input type="text" id="search" placeholder="Search contacts..." />
+    <table id="contacts-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Contacts will be populated here -->
+        </tbody>
+    </table>
+    <iframe id="dialer-iframe"></iframe>
+
+    <script>
+        // Fetch contacts from backend API
+        async function fetchContacts(query = '') {
+            const res = await fetch(`/api/contacts?search=${encodeURIComponent(query)}`);
+            return res.json();
+        }
+
+        function renderContacts(contacts) {
+            const tbody = document.querySelector('#contacts-table tbody');
+            tbody.innerHTML = '';
+            contacts.forEach(contact => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${contact.name}</td>
+                    <td>${contact.phone}</td>
+                    <td><button data-phone="${contact.phone}" data-name="${contact.name}" class="dial-btn">Dial</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function updateContacts() {
+            const query = document.getElementById('search').value;
+            const contacts = await fetchContacts(query);
+            renderContacts(contacts);
+        }
+
+        document.getElementById('search').addEventListener('input', updateContacts);
+
+        document.querySelector('#contacts-table').addEventListener('click', function(e) {
+            if (e.target.classList.contains('dial-btn')) {
+                const phone = e.target.getAttribute('data-phone');
+                const name = e.target.getAttribute('data-name');
+                const iframe = document.getElementById('dialer-iframe');
+                // Populate the iframe with dialer UI, passing phone and name as query params
+                iframe.src = `/dialer.html?name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}`;
+                iframe.style.display = 'block';
+            }
+        });
+
+        // Initial load
+        updateContacts();
+    </script>
+</body>
+</html>

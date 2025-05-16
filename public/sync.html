@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DL-LL02 LoRa Sync Console</title>
+    <!-- Material UI CDN (for demo, use npm/yarn in production) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mui/material@5.15.14/dist/material.min.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+    <style>
+        body {
+            background: #181818;
+            color: #e0e0e0;
+            font-family: 'Roboto', monospace, monospace;
+            margin: 0;
+            padding: 0;
+        }
+        .mui-container {
+            max-width: 900px;
+            margin: 3em auto;
+            padding: 2em;
+            background: #232323;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px #0008;
+        }
+        #console {
+            background: #1a1a1a;
+            border-radius: 8px;
+            border: 1px solid #333;
+            width: 100%;
+            height: 60vh;
+            margin-bottom: 2em;
+            padding: 1em;
+            overflow-y: auto;
+            font-size: 1em;
+            font-family: 'Roboto Mono', monospace;
+            white-space: pre-wrap;
+            box-sizing: border-box;
+        }
+        .mui-input-bar {
+            display: flex;
+            gap: 1em;
+            align-items: center;
+        }
+        #cliInput {
+            flex: 1;
+            background: #232323;
+            color: #e0e0e0;
+            border: none;
+            border-radius: 4px;
+            padding: 0.75em 1em;
+            font-size: 1em;
+            font-family: 'Roboto Mono', monospace;
+            outline: none;
+            box-shadow: 0 1px 2px #0002;
+            transition: box-shadow 0.2s;
+        }
+        #cliInput:focus {
+            box-shadow: 0 0 0 2px #1976d2;
+        }
+        .mui-send-btn {
+            background: #1976d2;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 0.75em 2em;
+            font-size: 1em;
+            font-family: 'Roboto', monospace;
+            cursor: pointer;
+            box-shadow: 0 2px 8px #1976d233;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+        .mui-send-btn:hover {
+            background: #1565c0;
+        }
+        .mui-console-title {
+            font-size: 1.5em;
+            font-weight: 500;
+            margin-bottom: 1em;
+            color: #90caf9;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+        }
+        .material-icons {
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-panel">
+        <h2>ADMIN PANEL</h2>
+        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='rtc-dial.html'">DIALER</button>
+        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="location.href='phonebook.html'">EXPLORER</button>
+        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="location.href='users.html'">USER MANAGEMENT</button>
+        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='sync.html'">LORA SYNC</button>
+        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="window.location.href='http://192.168.1.20'">AIRFIBER SETTINGS</button>
+        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="logout()">Log Out</button>
+    </div>
+    <a href="./admin.html" style="position: absolute; left: 2em; top: 2em; text-decoration: none;">
+        <button type="button" class="mui-send-btn" style="padding: 0.5em 1.5em; background: #424242;">
+            <span class="material-icons">arrow_back</span>
+            Back to Admin Panel
+        </button>
+    </a>
+    <div class="mui-container">
+        <div class="mui-console-title">
+            <span class="material-icons">terminal</span>
+            DL-LL02 LoRa Sync Console
+        </div>
+        <div id="console" tabindex="0"></div>
+        <form class="mui-input-bar" onsubmit="event.preventDefault();sendInput();">
+            <input id="cliInput" type="text" autocomplete="off" placeholder="Type command or data..." />
+            <button type="submit" class="mui-send-btn">
+                <span class="material-icons">send</span>
+                Send
+            </button>
+        </form>
+    </div>
+    <script>
+        // Simulated WebSocket for demo; replace with real backend endpoint
+        let ws = null;
+
+        const consoleBox = document.getElementById('console');
+        const cliInput = document.getElementById('cliInput');
+        const sendBtn = document.querySelector('.mui-send-btn');
+
+        function logToConsole(msg, type='log') {
+            const color = type === 'error' ? '#ef5350' : (type === 'recv' ? '#80ffea' : (type === 'send' ? '#90caf9' : '#e0e0e0'));
+            const prefix = type === 'recv' ? '[RECV] ' : (type === 'send' ? '[SEND] ' : '');
+            consoleBox.innerHTML += `<span style="color:${color}">${prefix}${msg}</span>\n`;
+            consoleBox.scrollTop = consoleBox.scrollHeight;
+        }
+
+        function toHexString(byteArray) {
+            return Array.from(byteArray, b => b.toString(16).padStart(2, '0')).join(' ');
+        }
+
+        function fromHexString(str) {
+            return new Uint8Array(str.split(' ').map(s => parseInt(s, 16)));
+        }
+
+        function connectWS() {
+            ws = new WebSocket('ws://localhost:8765');
+            ws.binaryType = 'arraybuffer';
+
+            ws.onopen = () => logToConsole('Connected to backend.', 'log');
+            ws.onclose = () => logToConsole('Connection closed.', 'error');
+            ws.onerror = (e) => logToConsole('WebSocket error.', 'error');
+            ws.onmessage = (event) => {
+                if (event.data instanceof ArrayBuffer) {
+                    const bytes = new Uint8Array(event.data);
+                    logToConsole(toHexString(bytes), 'recv');
+                } else {
+                    logToConsole(event.data, 'recv');
+                }
+            };
+        }
+
+        function sendInput() {
+            const val = cliInput.value.trim();
+            if (!val) return;
+            let data;
+            if (/^([0-9a-fA-F]{2} ?)+$/.test(val)) {
+                data = fromHexString(val);
+                ws && ws.send(data);
+                logToConsole(toHexString(data), 'send');
+            } else {
+                ws && ws.send(val);
+                logToConsole(val, 'send');
+            }
+            cliInput.value = '';
+        }
+
+        cliInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendInput();
+            }
+        });
+
+        // Auto-connect on load
+        connectWS();
+
+        // Focus input on load
+        cliInput.focus();
+    </script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!-- public/register.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Register</title>
+</head>
+<body>
+  <div class="admin-panel">
+    <h2>ADMIN PANEL</h2>
+    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='rtc-dial.html'">DIALER</button>
+    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="location.href='phonebook.html'">EXPLORER</button>
+    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="location.href='users.html'">USER MANAGEMENT</button>
+    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='sync.html'">LORA SYNC</button>
+    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="window.location.href='http://192.168.1.20'">AIRFIBER SETTINGS</button>
+    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="logout()">Log Out</button>
+  </div>
+  <h1>Register</h1>
+  <form action="/register" method="POST">
+    <label for="username">Username:</label><br />
+    <input type="text" id="username" name="username" required /><br /><br />
+
+    <label for="passphrase">Password:</label><br />
+    <input type="password" id="passphrase" name="passphrase" required /><br /><br />
+
+    <label for="role">Role:</label><br />
+    <select id="role" name="role" required>
+        <option value="">Select a role</option>
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+    </select><br /><br />
+
+    <input type="submit" value="Register" />
+  </form>
+</body>
+</html>

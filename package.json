@@ -18,11 +18,15 @@
   },
   "homepage": "https://github.com/revdeluxe/HDE#readme",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
     "path": "^0.12.7",
     "pg": "^8.16.0",
-    "require": "^0.4.4"
+    "require": "^0.4.4",
+    "socketio": "^1.0.0",
+    "sqlite3": "^5.1.7"
   }
 }
