@@ -67,29 +67,28 @@ app.use(express.urlencoded({ extended: true })); // ? For HTML form data
 app.use(express.json()); // For JSON (optional)
 app.use(cookieParser());
 
-app.post('/register', async (req, res) => {
-  const { username, passphrase, role } = req.body;
-  if (!username || !passphrase || !role) {
-    return res.status(400).json({ success: false, message: 'Missing required fields' });
+app.post('/register', (req, res) => {
+  const { username, passphrase, role, status } = req.body;
+
+  if (!username || !passphrase || !role || !status) {
+    return res.status(400).json({ success: false, message: 'All fields required.' });
   }
-  try {
-    const hashed = await require('bcrypt').hash(passphrase, 10);
+
+  bcrypt.hash(passphrase, 10, (err, hash) => {
+    if (err) return res.status(500).json({ success: false, message: 'Hashing error' });
+
     db.run(
-      'INSERT INTO users (username, passphrase, role, status, login_timestamp, device_info) VALUES (?, ?, ?, ?, datetime("now"), "register")',
-      [username, hashed, role, 'active'],
+      `INSERT INTO users (username, passphrase, role, status, login_timestamp, device_info)
+       VALUES (?, ?, ?, ?, null, null)`,
+      [username, hash, role, status],
       function (err) {
         if (err) {
-          if (err.message.includes('UNIQUE constraint failed')) {
-            return res.status(409).json({ success: false, message: 'Username already exists' });
-          }
-          return res.status(500).json({ success: false, message: 'Server error' });
+          return res.status(500).json({ success: false, message: 'Insert error', error: err.message });
         }
-        res.json({ success: true, id: this.lastID, username, role });
+        res.json({ success: true, uid: this.lastID });
       }
     );
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
+  });
 });
 
 app.post('/login', (req, res) => {
