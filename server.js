@@ -13,6 +13,9 @@ const SSL_CERT = fs.readFileSync(path.join(__dirname, 'ssl', 'server.cert'));
 const PORT = process.env.PORT || 3001;
 const HTTPS_PORT = process.env.HTTPS_PORT || 443;
 const HTTP_PORT = process.env.HTTP_PORT || 80;
+const { execFile } = require('child_process');
+const port = 3000;
+
 
 
 https.createServer({ key: SSL_KEY, cert: SSL_CERT }, app)
@@ -39,6 +42,27 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
     });
   }
 });
+
+app.use(express.static('Public'));
+
+app.get('/lora', (req, res) => {
+    execFile('python3', ['serial/serial.py'], (error, stdout, stderr) => {
+        if (error) {
+            return res.status(500).json({ error: stderr || error.message });
+        }
+        try {
+            const data = JSON.parse(stdout);
+            res.json(data);
+        } catch (e) {
+            res.status(500).json({ error: 'Failed to parse output' });
+        }
+    });
+});
+
+app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
+
+
+
 
 // Middleware
 app.use(express.static(path.join(__dirname, 'public')));

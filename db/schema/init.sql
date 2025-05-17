@@ -19,3 +19,9 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   ip_address TEXT,
   user_agent TEXT
 );
+
+CREATE TABLE lora_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    message TEXT NOT NULL
+);
