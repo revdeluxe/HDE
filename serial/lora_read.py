@@ -14,12 +14,12 @@ ser.close()
 timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
 
 # === Log to SQLite ===
-db_path = Path("LORA/db/lora.sqlite3")
-conn = sqlite3.connect(db_path)
-cur = conn.cursor()
-cur.execute("INSERT INTO lora_logs (timestamp, message) VALUES (?, ?)", (timestamp, data or "No data"))
-conn.commit()
-conn.close()
+# db_path = Path("LORA/db/lora.sqlite3")
+# conn = sqlite3.connect(db_path)
+# cur = conn.cursor()
+# cur.execute("INSERT INTO lora_logs (timestamp, message) VALUES (?, ?)", (timestamp, data or "No data"))
+# conn.commit()
+# conn.close()
 
 # === Output JSON for WebSocket/HTTP ===
 output = {
