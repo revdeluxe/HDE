@@ -46,7 +46,7 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
 app.use(express.static('Public'));
 
 app.get('/lora', (req, res) => {
-    execFile('python3', ['serial/serial.py'], (error, stdout, stderr) => {
+    execFile('python3', ['serial/lora_read.py'], (error, stdout, stderr) => {
         if (error) {
             return res.status(500).json({ error: stderr || error.message });
         }
