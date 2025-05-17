@@ -61,9 +61,6 @@ app.get('/lora', (req, res) => {
 
 app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
 
-
-
-
 // Middleware
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true })); // ? For HTML form data
