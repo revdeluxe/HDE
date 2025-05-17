@@ -86,16 +86,15 @@
   <!-- WebRTC SIP Overlay Call (hidden by default, shown on incoming call) -->
   <div id="webrtc-overlay" style="display:none; position:fixed; z-index:9999; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); justify-content:center; align-items:center;">
     <div id="webrtc-call-box" style="background:#fff; padding:2em; border-radius:10px; text-align:center; min-width:320px; box-shadow:0 4px 24px rgba(0,0,0,0.12);">
-      <h2 id="call-status" style="color:#1976d2;">Incoming Call...</h2>
-      <video id="remoteVideo" autoplay playsinline style="width:200px; height:150px; background:#000; margin:0.5em; border-radius:8px; border:2px solid #1976d2;"></video>
-      <video id="localVideo" autoplay muted playsinline style="width:200px; height:150px; background:#000; margin:0.5em; border-radius:8px; border:2px solid #1976d2;"></video>
-      <div id="call-controls" style="margin-top:1em; display:flex; justify-content:center; gap:1em;">
-        <button id="answerBtn" class="mui-btn mui-btn--contained mui-btn--success">Answer</button>
-        <button id="hangupBtn" class="mui-btn mui-btn--contained mui-btn--error">Hang Up</button>
+      <h2 id="call-status">Incoming Call...</h2>
+      <video id="remoteVideo" autoplay playsinline></video>
+      <video id="localVideo" autoplay muted playsinline></video>
+      <div id="call-controls" style="margin-top:1em;display:flex;justify-content:center;gap:1em;">
+        <button id="answerBtn">Answer</button>
+        <button id="hangupBtn">Hang Up</button>
       </div>
     </div>
   </div>
-
   <!-- JsSIP library for SIP over WebRTC -->
   <script src="https://cdn.jsdelivr.net/npm/jssip@3/dist/jssip.min.js"></script>
   <!-- MUI JS (for ripple effect, optional) -->
