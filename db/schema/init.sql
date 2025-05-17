@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   user_agent TEXT
 );
 
-CREATE TABLE lora_logs (
+
+CREATE TABLE IF NOT EXISTS lora_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     timestamp TEXT NOT NULL,
     message TEXT NOT NULL

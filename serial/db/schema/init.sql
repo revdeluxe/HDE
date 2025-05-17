@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS lora_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    message TEXT NOT NULL
+);
