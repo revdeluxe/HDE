@@ -67,6 +67,31 @@ app.use(express.urlencoded({ extended: true })); // ? For HTML form data
 app.use(express.json()); // For JSON (optional)
 app.use(cookieParser());
 
+app.post('/register', async (req, res) => {
+  const { username, passphrase, role } = req.body;
+  if (!username || !passphrase || !role) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+  try {
+    const hashed = await require('bcrypt').hash(passphrase, 10);
+    db.run(
+      'INSERT INTO users (username, passphrase, role, status, login_timestamp, device_info) VALUES (?, ?, ?, ?, datetime("now"), "register")',
+      [username, hashed, role, 'active'],
+      function (err) {
+        if (err) {
+          if (err.message.includes('UNIQUE constraint failed')) {
+            return res.status(409).json({ success: false, message: 'Username already exists' });
+          }
+          return res.status(500).json({ success: false, message: 'Server error' });
+        }
+        res.json({ success: true, id: this.lastID, username, role });
+      }
+    );
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 app.post('/login', (req, res) => {
   const { username, passphrase } = req.body;
   const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
