@@ -14,7 +14,7 @@ ser.close()
 timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
 
 # === Log to SQLite ===
-db_path = Path("../db/HDE.sqlite3")
+db_path = Path("../db/hde.sqlite3")
 conn = sqlite3.connect(db_path)
 cur = conn.cursor()
 cur.execute("INSERT INTO lora_logs (timestamp, message) VALUES (?, ?)", (timestamp, data or "No data"))
