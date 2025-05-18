@@ -103,52 +103,29 @@
         <script>
             // Function to append text to the console
             function appendToConsole(text) {
-            const consoleElement = document.getElementById('console');
-            consoleElement.innerHTML += text + '<br>';
-            consoleElement.scrollTop = consoleElement.scrollHeight; // Scroll to the bottom
+                const consoleElement = document.getElementById('console');
+                consoleElement.innerHTML += text + '<br>';
+                consoleElement.scrollTop = consoleElement.scrollHeight; // Scroll to the bottom
             }
 
             // Function to load history from the server
             async function loadHistory() {
-            try {
-                const response = await fetch('/lora/history');
-                if (!response.ok) throw new Error('Failed to load history');
-                const history = await response.json();
-                history.forEach(entry => {
-                appendToConsole(`[${entry.timestamp}] ${entry.message}`);
-                });
-            } catch (error) {
-                appendToConsole('Error loading history: ' + error.message);
-            }
-            }
-
-            // Function to send input from the CLI
-            async function sendInput() {
-            const inputField = document.getElementById('cliInput');
-            const inputText = inputField.value;
-            if (inputText.trim() === '') return;
-
-            appendToConsole(`> ${inputText}`);
-            inputField.value = '';
-
-            // Send the input to the server
-            try {
-                const response = await fetch('/lora', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ command: inputText })
-                });
-                const data = await response.json();
-                appendToConsole(data.output);
-            } catch (error) {
-                appendToConsole('Error: ' + error.message);
-            }
+                try {
+                    const response = await fetch('/lora/history');
+                    if (!response.ok) throw new Error('Failed to load history');
+                    const history = await response.json();
+                    history.forEach(entry => {
+                        appendToConsole(`[${entry.timestamp}] ${entry.message}`);
+                    });
+                } catch (error) {
+                    appendToConsole('Error loading history: ' + error.message);
+                }
             }
 
-            // Focus on the CLI input field and load history when the page loads
+            // Focus on the console when the page loads and load history
             window.onload = () => {
-            document.getElementById('cliInput').focus();
-            loadHistory();
+                document.getElementById('console').focus();
+                loadHistory();
             };
         </script>
         <div class="mui-console-title">
@@ -156,13 +133,13 @@
             DL-LL02 LoRa Sync Console
         </div>
         <div id="console" tabindex="0"></div>
-        <form class="mui-input-bar" onsubmit="event.preventDefault();sendInput();">
-            <input id="cliInput" type="text" autocomplete="off" placeholder="Type command or data..." />
-            <button type="submit" class="mui-send-btn">
+        <div class="mui-input-bar" style="opacity:0.5;pointer-events:none;">
+            <input id="cliInput" type="text" autocomplete="off" placeholder="Receive only" disabled />
+            <button type="button" class="mui-send-btn" disabled>
                 <span class="material-icons">send</span>
                 Send
             </button>
-        </form>
+        </div>
     </div>
 </body>
 </html>
