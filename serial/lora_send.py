@@ -2,29 +2,20 @@ import serial
 import time
 import sys
 
-def main():
-    # Change this to the correct serial port for your system
-    serial_port = "/dev/serial0"  # For Windows, e.g., "COM3"
-    baudrate = 9600
+# Accept message from command line argument
+if len(sys.argv) < 2:
+    print("No message provided.")
+    sys.exit(1)
 
-    try:
-        ser = serial.Serial(serial_port, baudrate, timeout=2)
-    except serial.SerialException as e:
-        print(f"Could not open serial port: {e}")
-        sys.exit(1)
+message = sys.argv[1]
+serial_port = "/dev/serial0"  # For Windows, e.g., "COM3"
+baudrate = 9600
 
-    print("Type messages to send. Press Ctrl+C to exit.")
-    try:
-        while True:
-            data = input("Send: ")
-            if not data:
-                continue
-            ser.write(data.encode())
-            print("Sent.")
-    except KeyboardInterrupt:
-        print("\nExiting.")
-    finally:
-        ser.close()
-
-if __name__ == "__main__":
-    main()
+try:
+    ser = serial.Serial(serial_port, baudrate, timeout=2)
+    ser.write(message.encode())
+    ser.close()
+    print("Message sent.")
+except serial.SerialException as e:
+    print(f"Serial error: {e}")
+    sys.exit(1)

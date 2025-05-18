@@ -122,10 +122,42 @@
                 }
             }
 
-            // Focus on the console when the page loads and load history
+            // Function to send a message via LoRa
+            async function sendLoraMessage() {
+                const input = document.getElementById('cliInput');
+                const message = input.value.trim();
+                if (!message) return;
+                appendToConsole('> ' + message);
+                input.value = '';
+                try {
+                    const response = await fetch('/lora/send', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        appendToConsole('[Sent] ' + result.status);
+                    } else {
+                        appendToConsole('[Error] ' + (result.error || 'Failed to send'));
+                    }
+                } catch (err) {
+                    appendToConsole('[Error] ' + err.message);
+                }
+            }
+
+            // Handle Enter key for sending
             window.onload = () => {
                 document.getElementById('console').focus();
                 loadHistory();
+                const input = document.getElementById('cliInput');
+                input.disabled = false;
+                input.parentElement.style.opacity = 1;
+                input.parentElement.style.pointerEvents = 'auto';
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') sendLoraMessage();
+                });
+                document.getElementById('sendBtn').disabled = false;
             };
         </script>
         <div class="mui-console-title">
@@ -133,9 +165,9 @@
             DL-LL02 LoRa Sync Console
         </div>
         <div id="console" tabindex="0"></div>
-        <div class="mui-input-bar" style="opacity:0.5;pointer-events:none;">
-            <input id="cliInput" type="text" autocomplete="off" placeholder="Receive only" disabled />
-            <button type="button" class="mui-send-btn" disabled>
+        <div class="mui-input-bar">
+            <input id="cliInput" type="text" autocomplete="off" placeholder="Type message to send..." />
+            <button id="sendBtn" type="button" class="mui-send-btn" onclick="sendLoraMessage()">
                 <span class="material-icons">send</span>
                 Send
             </button>

@@ -203,6 +203,20 @@ app.get('/lora', (req, res) => {
   });
 });
 
+// Lo-Ra send endpoint
+app.post('/lora/send', (req, res) => {
+  const { message } = req.body;
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    return res.status(400).json({ success: false, error: 'Message required' });
+  }
+  // Call lora_send.py with the message as argument
+  execFile('python3', ['serial/lora_send.py', message], (error, stdout, stderr) => {
+    if (error) {
+      return res.status(500).json({ success: false, error: stderr || error.message });
+    }
+    res.json({ success: true, status: stdout.trim() });
+  });
+});
 
 // Fallback for SPA
 app.use((req, res, next) => {
