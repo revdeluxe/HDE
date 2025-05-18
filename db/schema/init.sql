@@ -26,3 +26,20 @@ CREATE TABLE IF NOT EXISTS lora_logs (
     timestamp TEXT NOT NULL,
     message TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS ps_contacts (
+    id VARCHAR(255) PRIMARY KEY,
+    uri VARCHAR(255),
+    expiration_time INTEGER,
+    qualify_frequency INTEGER,
+    outbound_proxy VARCHAR(40),
+    path VARCHAR(255),
+    user_agent VARCHAR(255),
+    reg_server VARCHAR(40),
+    authenticate_qualify VARCHAR(5),
+    via_addr VARCHAR(40),
+    via_port INTEGER,
+    call_id VARCHAR(255),
+    prune_on_boot VARCHAR(5),
+    endpoint VARCHAR(40)
+);

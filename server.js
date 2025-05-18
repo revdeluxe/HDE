@@ -46,20 +46,11 @@ app.use(express.static(publicDir));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
-
-// Lora endpoint
-app.get('/lora', (req, res) => {
-  execFile('python3', ['serial/lora_read.py'], (error, stdout, stderr) => {
-    if (error) {
-      return res.status(500).json({ error: stderr || error.message });
-    }
-    try {
-      const data = JSON.parse(stdout);
-      res.json(data);
-    } catch (e) {
-      res.status(500).json({ error: 'Failed to parse output' });
-    }
-  });
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  next();
 });
 
 // Register endpoint
@@ -195,6 +186,21 @@ app.get('/:file', (req, res) => {
   } else {
     res.status(404).send('Not Found');
   }
+});
+
+// Lo-Ra endpoint
+app.get('/lora', (req, res) => {
+  execFile('python3', ['serial/lora_read.py'], (error, stdout, stderr) => {
+    if (error) {
+      return res.status(500).json({ error: stderr || error.message });
+    }
+    try {
+      const data = JSON.parse(stdout);
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ error: 'Failed to parse output' });
+    }
+  });
 });
 
 

@@ -100,6 +100,57 @@
         </button>
     </a>
     <div class="mui-container">
+        <script>
+            // Function to append text to the console
+            function appendToConsole(text) {
+            const consoleElement = document.getElementById('console');
+            consoleElement.innerHTML += text + '<br>';
+            consoleElement.scrollTop = consoleElement.scrollHeight; // Scroll to the bottom
+            }
+
+            // Function to load history from the server
+            async function loadHistory() {
+            try {
+                const response = await fetch('/lora/history');
+                if (!response.ok) throw new Error('Failed to load history');
+                const history = await response.json();
+                history.forEach(entry => {
+                appendToConsole(`[${entry.timestamp}] ${entry.message}`);
+                });
+            } catch (error) {
+                appendToConsole('Error loading history: ' + error.message);
+            }
+            }
+
+            // Function to send input from the CLI
+            async function sendInput() {
+            const inputField = document.getElementById('cliInput');
+            const inputText = inputField.value;
+            if (inputText.trim() === '') return;
+
+            appendToConsole(`> ${inputText}`);
+            inputField.value = '';
+
+            // Send the input to the server
+            try {
+                const response = await fetch('/lora', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: inputText })
+                });
+                const data = await response.json();
+                appendToConsole(data.output);
+            } catch (error) {
+                appendToConsole('Error: ' + error.message);
+            }
+            }
+
+            // Focus on the CLI input field and load history when the page loads
+            window.onload = () => {
+            document.getElementById('cliInput').focus();
+            loadHistory();
+            };
+        </script>
         <div class="mui-console-title">
             <span class="material-icons">terminal</span>
             DL-LL02 LoRa Sync Console
@@ -113,73 +164,5 @@
             </button>
         </form>
     </div>
-    <script>
-        // Simulated WebSocket for demo; replace with real backend endpoint
-        let ws = null;
-
-        const consoleBox = document.getElementById('console');
-        const cliInput = document.getElementById('cliInput');
-        const sendBtn = document.querySelector('.mui-send-btn');
-
-        function logToConsole(msg, type='log') {
-            const color = type === 'error' ? '#ef5350' : (type === 'recv' ? '#80ffea' : (type === 'send' ? '#90caf9' : '#e0e0e0'));
-            const prefix = type === 'recv' ? '[RECV] ' : (type === 'send' ? '[SEND] ' : '');
-            consoleBox.innerHTML += `<span style="color:${color}">${prefix}${msg}</span>\n`;
-            consoleBox.scrollTop = consoleBox.scrollHeight;
-        }
-
-        function toHexString(byteArray) {
-            return Array.from(byteArray, b => b.toString(16).padStart(2, '0')).join(' ');
-        }
-
-        function fromHexString(str) {
-            return new Uint8Array(str.split(' ').map(s => parseInt(s, 16)));
-        }
-
-        function connectWS() {
-            ws = new WebSocket('ws://localhost:8765');
-            ws.binaryType = 'arraybuffer';
-
-            ws.onopen = () => logToConsole('Connected to backend.', 'log');
-            ws.onclose = () => logToConsole('Connection closed.', 'error');
-            ws.onerror = (e) => logToConsole('WebSocket error.', 'error');
-            ws.onmessage = (event) => {
-                if (event.data instanceof ArrayBuffer) {
-                    const bytes = new Uint8Array(event.data);
-                    logToConsole(toHexString(bytes), 'recv');
-                } else {
-                    logToConsole(event.data, 'recv');
-                }
-            };
-        }
-
-        function sendInput() {
-            const val = cliInput.value.trim();
-            if (!val) return;
-            let data;
-            if (/^([0-9a-fA-F]{2} ?)+$/.test(val)) {
-                data = fromHexString(val);
-                ws && ws.send(data);
-                logToConsole(toHexString(data), 'send');
-            } else {
-                ws && ws.send(val);
-                logToConsole(val, 'send');
-            }
-            cliInput.value = '';
-        }
-
-        cliInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendInput();
-            }
-        });
-
-        // Auto-connect on load
-        connectWS();
-
-        // Focus input on load
-        cliInput.focus();
-    </script>
 </body>
 </html>
