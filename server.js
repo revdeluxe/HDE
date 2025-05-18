@@ -1,3 +1,5 @@
+// Declare dependencies
+
 const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
@@ -8,16 +10,16 @@ const http = require('http');
 const https = require('https');
 const bcrypt = require('bcrypt');
 const { execFile } = require('child_process');
-
 const app = express();
 
+// Constants
+
+const publicDir = path.join(__dirname, 'public');
 const DB_PATH = process.env.SQLITE_DB_PATH || path.join(__dirname, 'db', 'hde.sqlite3');
 const SSL_KEY = fs.readFileSync(path.join(__dirname, 'ssl', 'server.key'));
 const SSL_CERT = fs.readFileSync(path.join(__dirname, 'ssl', 'server.cert'));
 const HTTPS_PORT = process.env.HTTPS_PORT || 443;
 const HTTP_PORT = process.env.HTTP_PORT || 80;
-
-const publicDir = path.join(__dirname, 'public');
 
 // Initialize SQLite DB
 if (!fs.existsSync(path.join(__dirname, 'db'))) {
@@ -139,8 +141,8 @@ app.post('/logout', (req, res) => {
   res.clearCookie('loggedIn').json({ success: true });
 });
 
-// Admin route
-app.use(/^\/admin(?:\/.*)?$/, (req, res) => {
+// Admin route (no regex)
+app.get('/admin', (req, res) => {
   res.sendFile(path.join(publicDir, 'admin.html'));
 });
 
@@ -185,7 +187,8 @@ app.delete('/api/users/:id', (req, res) => {
 });
 
 // Serve all .html files in /public directly (fixes Not Found for deep links)
-app.get('/:file([\\w\\-]+\\.html)', (req, res) => {
+app.get('/:file', (req, res) => {
+  if (!req.params.file.endsWith('.html')) return res.status(404).send('Not Found');
   const file = path.join(publicDir, req.params.file);
   if (fs.existsSync(file)) {
     res.sendFile(file);
@@ -193,6 +196,7 @@ app.get('/:file([\\w\\-]+\\.html)', (req, res) => {
     res.status(404).send('Not Found');
   }
 });
+
 
 // Fallback for SPA
 app.use((req, res, next) => {
