@@ -11,9 +11,10 @@ const https = require('https');
 const bcrypt = require('bcrypt');
 const { execFile } = require('child_process');
 const app = express();
+const { exec } = require('child_process');
+
 
 // Constants
-
 const publicDir = path.join(__dirname, 'public');
 const DB_PATH = process.env.SQLITE_DB_PATH || path.join(__dirname, 'db', 'hde.sqlite3');
 const SSL_KEY = fs.readFileSync(path.join(__dirname, 'ssl', 'server.key'));
@@ -55,24 +56,47 @@ app.use((req, res, next) => {
 
 // Register endpoint
 app.post('/register', (req, res) => {
-  const { username, passphrase, role, status } = req.body;
-  if (!username || !passphrase || !role || !status) {
-    return res.status(400).json({ success: false, message: 'All fields required.' });
-  }
-  bcrypt.hash(passphrase, 10, (err, hash) => {
-    if (err) return res.status(500).json({ success: false, message: 'Hashing error' });
-    db.run(
-      `INSERT INTO users (username, passphrase, role, status, login_timestamp, device_info)
-       VALUES (?, ?, ?, ?, null, null)`,
-      [username, hash, role, status],
-      function (err) {
-        if (err) {
-          return res.status(500).json({ success: false, message: 'Insert error', error: err.message });
-        }
-        res.json({ success: true, uid: this.lastID });
+  const pjsipEntry = `
+  //-------------------------------------------------
+  [${username}]
+  type=endpoint
+  context=default
+  disallow=all
+  allow=ulaw
+  auth=${username}
+  aors=${username}
+  webrtc=yes
+  dtls_auto_generate_cert=yes
+
+  [${username}]
+  type=auth
+  auth_type=userpass
+  username=${username}
+  password=${passphrase}
+
+  [${username}]
+  type=aor
+  max_contacts=1
+  `;
+
+  fs.appendFile('/etc/asterisk/pjsip.conf', pjsipEntry, (err) => {
+    if (err) {
+      console.error('Failed to write to pjsip.conf:', err);
+      return res.status(500).send("Registration failed: Couldn't update SIP config.");
+    }
+
+    // Reload PJSIP config in Asterisk
+    exec('asterisk -rx "module reload res_pjsip.so"', (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Failed to reload Asterisk PJSIP module: ${stderr}`);
+        return res.status(500).send("Registration saved, but failed to reload Asterisk.");
       }
-    );
-  });
+
+      console.log(`✅ Asterisk PJSIP reloaded:\n${stdout}`);
+      res.send(`<h3>Registration successful!</h3><p>SIP user: ${username} added to Asterisk</p><a href="/register.html">Go back</a>`);
+    });
+});
+
 });
 
 // Login endpoint

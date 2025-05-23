@@ -62,84 +62,52 @@
     <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="window.location.href='http://192.168.0.103'" target="_blank">AIRFIBER SETTINGS</button>
     <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="logout()">Log Out</button>
   </div>
-  <!-- Emergency Overlay (hidden by default, shown on incoming call) -->
-  <div id="emergency-overlay" style="display:none; position:fixed; z-index:9999; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.7); justify-content:center; align-items:center;">
-    <div class="mui-container" style="background:#292929; border-radius:16px; box-shadow:0 4px 24px rgba(0,0,0,0.5); padding:2em; max-width:600px; margin:auto;">
-      <div class="mui-title" style="display:flex;align-items:center;gap:0.5em;font-size:2rem;font-weight:500;color:#fff;margin-bottom:1em;">
-        <span class="material-icons">call</span>
-        Emergency Call Receiver
-      </div>
-      <video id="emergency-video" autoplay playsinline style="width:100%;height:340px;background:#000;border-radius:12px;margin-bottom:1.5em;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></video>
-      <div id="emergency-status" style="text-align:center;margin-top:1em;color:#90caf9;font-size:1.1em;">Waiting for incoming calls...</div>
-      <div class="mui-actions" style="display:flex;justify-content:center;gap:2em;margin-top:1.5em;">
-        <button id="emergency-accept" class="mui-btn accept" title="Accept Call" disabled style="min-width:56px;min-height:56px;border-radius:50%;font-size:2rem;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:none;outline:none;cursor:pointer;transition:background 0.2s;opacity:0.5;background:#43a047;"><span class="material-icons">call</span></button>
-        <button id="emergency-end" class="mui-btn end" title="End Call" style="min-width:56px;min-height:56px;border-radius:50%;font-size:2rem;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);border:none;outline:none;cursor:pointer;transition:background 0.2s;background:#e53935;"><span class="material-icons">call_end</span></button>
-      </div>
-    </div>
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/jssip@3/dist/jssip.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <script>
-    // Only enable for admin role (this file is admin.html)
-    // Replace with your SIP/Asterisk details
-    const SIP_DOMAIN = 'wss://your-asterisk-server:8089/ws';
-    const SIP_URI = 'sip:admin@your-asterisk-domain';
-    const SIP_USER = 'admin';
-    const SIP_PASS = 'password';
-    const overlay = document.getElementById('emergency-overlay');
-    const status = document.getElementById('emergency-status');
-    const acceptBtn = document.getElementById('emergency-accept');
-    const endBtn = document.getElementById('emergency-end');
-    const video = document.getElementById('emergency-video');
-    let currentSession = null;
-    const socket = new JsSIP.WebSocketInterface(SIP_DOMAIN);
-    const configuration = {
-      sockets: [socket],
-      uri: SIP_URI,
-      password: SIP_PASS,
-      session_timers: false
-    };
-    const ua = new JsSIP.UA(configuration);
-    ua.on('newRTCSession', function(e) {
-      const session = e.session;
-      if (session.direction === 'incoming') {
-        currentSession = session;
-        overlay.style.display = 'flex';
-        status.textContent = 'Incoming Emergency Call...';
-        acceptBtn.disabled = false;
-        acceptBtn.style.opacity = 1;
-        acceptBtn.onclick = () => {
-          session.answer({ mediaConstraints: { audio: true, video: true } });
-        };
-        endBtn.onclick = () => {
-          session.terminate();
-        };
-        session.on('accepted', () => {
-          status.textContent = 'Call in Progress';
-        });
-        session.on('ended', () => {
-          overlay.style.display = 'none';
-          video.srcObject = null;
-        });
-        session.on('failed', () => {
-          overlay.style.display = 'none';
-          video.srcObject = null;
-        });
-        session.connection.addEventListener('track', (event) => {
-          if (event.track.kind === 'video') {
-            video.srcObject = event.streams[0];
-          }
-        });
-        navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-          .then(stream => {
-            // Optionally show local preview if needed
-          });
-      }
+    const socket = io();
+
+    socket.on('incoming_call', function(data) {
+      alert("Incoming call from " + data.from); // Replace with UI modal
+      // Play ring tone
+      const audio = new Audio('/sounds/ring.mp3');
+      audio.loop = true;
+      audio.play();
     });
-    ua.start();
-    async function logout() {
-      await fetch('/logout', { method: 'POST', credentials: 'include' });
-      location.href = 'index.html';
+  </script>
+  
+  <script>
+  function logout() {
+    // Clear cookies and redirect to login
+    document.cookie.split(";").forEach(function(c) {
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+    });
+    window.location.href = "login.html";
+  }
+
+  // Check online status and session
+  async function checkOnlineStatus() {
+    // Example: check for a session cookie
+    const cookies = document.cookie.split(';').map(c => c.trim());
+    const sessionCookie = cookies.find(c => c.startsWith('session='));
+    if (!sessionCookie) {
+      logout();
+      return;
     }
+
+    try {
+      // Replace '/api/check-session' with your actual endpoint
+      const res = await fetch('/api/check-session', { credentials: 'include' });
+      if (!res.ok) throw new Error('Offline or invalid session');
+      const data = await res.json();
+      if (!data.online) throw new Error('User offline');
+    } catch (e) {
+      // Optionally log the failed attempt
+      fetch('/api/log-logout', { method: 'POST', credentials: 'include' });
+      logout();
+    }
+  }
+
+  checkOnlineStatus();
   </script>
 </body>
 </html>
