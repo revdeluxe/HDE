@@ -13,20 +13,22 @@
 <body>
     <div class="admin-panel">
         <h2>ADMIN PANEL</h2>
-        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='rtc-dial.html'">DIALER</button>
+        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="location.href='admin.html'">MAIN MENU</button>
         <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="location.href='phonebook.html'">EXPLORER</button>
-        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="location.href='users.html'">USER MANAGEMENT</button>
-        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='sync.html'">LORA SYNC</button>
-        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="window.location.href='http://192.168.1.20'">AIRFIBER SETTINGS</button>
+        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="location.href='user_management.html'">USER MANAGEMENT</button>
+        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='lora.html'">LORA</button>
+        <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="window.location.href='http://192.168.0.103'" target="_blank">AIRFIBER SETTINGS</button>
         <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="logout()">Log Out</button>
     </div>
     <h1>Phonebook</h1>
-    <input type="text" id="search" placeholder="Search contacts..." />
+    <input type="text" id="search" placeholder="Search contacts..." style="margin-bottom: 20px; padding: 10px; width: 100%; max-width: 400px;">
     <table id="contacts-table">
         <thead>
             <tr>
-                <th>Name</th>
-                <th>Phone</th>
+                <th>Aor/ContactUri</th>
+                <th>Hash</th>
+                <th>Status</th>
+                <th>RTT(ms)</th>
                 <th>Action</th>
             </tr>
         </thead>
@@ -37,9 +39,9 @@
     <iframe id="dialer-iframe"></iframe>
 
     <script>
-        // Fetch contacts from backend API
+        // Fetch contacts from Asterisk PJSIP
         async function fetchContacts(query = '') {
-            const res = await fetch(`/api/contacts?search=${encodeURIComponent(query)}`);
+            const res = await fetch(`/api/asterisk/contacts?search=${encodeURIComponent(query)}`);
             return res.json();
         }
 
@@ -49,9 +51,11 @@
             contacts.forEach(contact => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td>${contact.name}</td>
-                    <td>${contact.phone}</td>
-                    <td><button data-phone="${contact.phone}" data-name="${contact.name}" class="dial-btn">Dial</button></td>
+                    <td>${contact.aorContactUri}</td>
+                    <td>${contact.hash}</td>
+                    <td>${contact.status}</td>
+                    <td>${contact.rtt}</td>
+                    <td><button data-phone="${contact.aorContactUri}" class="dial-btn">Dial</button></td>
                 `;
                 tbody.appendChild(tr);
             });
@@ -68,10 +72,9 @@
         document.querySelector('#contacts-table').addEventListener('click', function(e) {
             if (e.target.classList.contains('dial-btn')) {
                 const phone = e.target.getAttribute('data-phone');
-                const name = e.target.getAttribute('data-name');
                 const iframe = document.getElementById('dialer-iframe');
-                // Populate the iframe with dialer UI, passing phone and name as query params
-                iframe.src = `/dialer.html?name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}`;
+                // Populate the iframe with dialer UI, passing phone as a query param
+                iframe.src = `/dialer.html?contact=${encodeURIComponent(phone)}`;
                 iframe.style.display = 'block';
             }
         });

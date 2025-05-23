@@ -51,18 +51,74 @@
       }
     }
   </style>
+  
 </head>
 <body>
+  <h5>Asterisk Status: <span id="status">Loading...</span></h5>
+  <script src="/js/sip.min.js"></script>
+  <script>
+    async function startSIP() {
+      const userAgent = new SIP.UserAgent({
+      uri: SIP.UserAgent.makeURI("sip:alice@192.168.18.17"),
+      transportOptions: {
+        server: "wss://192.168.18.17:8089/ws"
+      },
+      authorizationUsername: "alice",
+      authorizationPassword: "adminalice",
+      sessionDescriptionHandlerFactoryOptions: {
+        constraints: { audio: true, video: false }
+      },
+      delegate: {
+        onInvite(invitation) {
+        alert("Incoming call ??");
+        console.log("Incoming call", invitation);
+        }
+      }
+      });
+
+      const registerer = new SIP.Registerer(userAgent);
+
+      try {
+        await userAgent.start();
+        await registerer.register();
+        alert("Registered ?");
+        document.getElementById("status").innerText = "Online as " + userAgent.userName;
+      } catch (err) {
+        console.error("Registration error:", err);
+        alert("Registration Failed ?");
+        document.getElementById("status").innerText = "Failed to Register presence malformed data?" + userAgent.userName;
+      }
+    }
+    startSIP();
+</script>
+  <script>
+    fetch('/api/greeting')
+      .then(response => response.json())
+      .then(data => {
+        if (data.greeting) {
+          document.body.insertAdjacentHTML('afterbegin', `<p style="text-align: center; color: green;">${data.greeting}</p>`);
+        } else {
+          document.body.insertAdjacentHTML('afterbegin', `<p style="text-align: center; color: red;">Unable to fetch greeting message.</p>`);
+        }
+      })
+      .catch(error => {
+        console.error('Error fetching greeting:', error);
+        alert(error);
+        document.body.insertAdjacentHTML('afterbegin', `<p style="text-align: center; color: red;">Error fetching greeting message.</p>`);
+      });
+  </script>
   <div class="admin-panel">
     <h2>ADMIN PANEL</h2>
-    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='rtc-dial.html'">DIALER</button>
+
     <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="location.href='phonebook.html'">EXPLORER</button>
     <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="location.href='user_management.html'">USER MANAGEMENT</button>
     <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='lora.html'">LORA</button>
     <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="window.location.href='http://192.168.0.103'" target="_blank">AIRFIBER SETTINGS</button>
     <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="logout()">Log Out</button>
   </div>
-  <script src="/socket.io/socket.io.js"></script>
+  <!--<script src="/socket.io/socket.io.js"></script>
+  -->
+  <!--
   <script>
     const socket = io();
 
@@ -73,7 +129,7 @@
       audio.loop = true;
       audio.play();
     });
-  </script>
+  </script>-->
   
   <script>
   function logout() {
@@ -83,31 +139,6 @@
     });
     window.location.href = "login.html";
   }
-
-  // Check online status and session
-  async function checkOnlineStatus() {
-    // Example: check for a session cookie
-    const cookies = document.cookie.split(';').map(c => c.trim());
-    const sessionCookie = cookies.find(c => c.startsWith('session='));
-    if (!sessionCookie) {
-      logout();
-      return;
-    }
-
-    try {
-      // Replace '/api/check-session' with your actual endpoint
-      const res = await fetch('/api/check-session', { credentials: 'include' });
-      if (!res.ok) throw new Error('Offline or invalid session');
-      const data = await res.json();
-      if (!data.online) throw new Error('User offline');
-    } catch (e) {
-      // Optionally log the failed attempt
-      fetch('/api/log-logout', { method: 'POST', credentials: 'include' });
-      logout();
-    }
-  }
-
-  checkOnlineStatus();
   </script>
 </body>
 </html>

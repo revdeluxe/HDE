@@ -56,6 +56,43 @@ app.use((req, res, next) => {
   next();
 });
 
+// --- API: Search Asterisk Contacts (for phonebook.html and phonebook_user.html) ---
+app.get('/api/asterisk/contacts', (req, res) => {
+  const searchQuery = req.query.search || '';
+  const sanitizedQuery = searchQuery.replace(/[^a-zA-Z0-9\s_-]/g, '').toLowerCase();
+
+  exec('asterisk -rx "pjsip show contacts"', (error, stdout, stderr) => {
+    if (error) {
+      console.error('❌ Exec error:', error.message);
+      return res.status(500).json({ error: error.message });
+    }
+
+    console.log('[stdout]', stdout);
+    console.log('[stderr]', stderr);
+
+    res.json({ rawOutput: stdout });
+
+    const contacts = [];
+    const lines = stdout.split('\n');
+    lines.forEach(line => {
+      const match = line.match(/^(.*?)\s+(.*?)\s+(.*?)\s+Avail\s+(.*?)\s+/);
+      if (match) {
+        const name = match[1].trim();
+        const contact = match[2].trim();
+        const availability = match[4].trim();
+        if (
+          name.toLowerCase().includes(sanitizedQuery) ||
+          contact.toLowerCase().includes(sanitizedQuery)
+        ) {
+          contacts.push({ name, contact, availability });
+        }
+      }
+    });
+
+    res.json(contacts);
+  });
+});
+
 app.post('/register', async (req, res) => {
   let { username, passphrase, role, status } = req.body;
 
@@ -67,43 +104,48 @@ app.post('/register', async (req, res) => {
   username = username.replace(/[^a-zA-Z0-9_-]/g, '');
   passphrase = passphrase.replace(/[^a-zA-Z0-9!@#$%^&*()_+=-]/g, '');
 
-  // Hash password
-  const hashedPassphrase = await bcrypt.hash(passphrase, 10);
+  // Check if username already exists
+  db.get('SELECT * FROM users WHERE username = ?', [username], async (err, row) => {
+    if (err) return res.status(500).send('Database error');
 
-  const loginTimestamp = new Date().toISOString();
-  const deviceInfo = JSON.stringify({
-    user_agent: req.headers['user-agent'],
-    ip_address: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
-  });
-
-  // status as string, not numeric (keep 'active' or 'inactive')
-  // Use your schema's status as TEXT, not integer flag
-
-  const insertQuery = `
-    INSERT INTO users (username, passphrase, role, status, login_timestamp, device_info)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `;
-
-  db.run(insertQuery, [username, hashedPassphrase, role, status, loginTimestamp, deviceInfo], function (err) {
-    if (err) {
-      console.error('Database error during registration:', err.message);
-      return res.status(500).send("Failed to register user.");
+    if (row) {
+      return res.status(409).send('❗ Username already exists. Please choose another one.');
     }
 
-    res.send(`<h3>Registration successful!</h3><p>User <strong>${username}</strong> has been added to the system.</p><a href="/register.html">Go back</a>`);
+    const hashedPassphrase = await bcrypt.hash(passphrase, 10);
+    const loginTimestamp = new Date().toISOString();
+    const deviceInfo = JSON.stringify({
+      user_agent: req.headers['user-agent'],
+      ip_address: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+    });
+
+    const insertQuery = `
+      INSERT INTO users (username, passphrase, role, status, login_timestamp, device_info)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
+
+    db.run(insertQuery, [username, hashedPassphrase, role, status, loginTimestamp, deviceInfo], function (err) {
+      if (err) {
+        console.error('❌ Database error during registration:', err.message);
+        return res.status(500).send("Failed to register user.");
+      }
+
+      res.send(`<h3>✅ Registration successful!</h3><p>User <strong>${username}</strong> has been added to the system.</p><a href="/register.html">Go back</a>`);
+    });
   });
 });
 
+
 app.post('/login', (req, res) => {
   const { username, passphrase } = req.body;
-  const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   const userAgent = req.headers['user-agent'] || 'Unknown';
 
   if (!username || !passphrase) {
     return res.status(400).json({ success: false, message: 'Missing username or password' });
   }
 
-  db.get('SELECT * FROM users WHERE username = ? AND status = ?', [username, 'active'], (err, user) => {
+  db.get('SELECT * FROM users WHERE LOWER(username) = ?', [username.toLowerCase()], (err, user) => {
     if (err) {
       db.run(
         `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
@@ -118,7 +160,7 @@ app.post('/login', (req, res) => {
          VALUES (?, ?, ?, datetime('now'), ?, ?)`,
         [null, username, false, ip, userAgent]
       );
-      return res.status(401).json({ success: false, message: 'Invalid credentials or inactive account' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials or account does not exist' });
     }
     const uid = user.uid;
     bcrypt.compare(passphrase, user.passphrase, (err, match) => {
@@ -131,7 +173,7 @@ app.post('/login', (req, res) => {
         return res.status(401).json({ success: false, message: 'Invalid credentials' });
       }
       db.run(
-        `UPDATE users SET login_timestamp = datetime('now'), device_info = ? WHERE uid = ?`,
+        `UPDATE users SET login_timestamp = datetime('now'), device_info = ?, status = 'online' WHERE uid = ?`,
         [userAgent, uid]
       );
       db.run(
@@ -139,62 +181,31 @@ app.post('/login', (req, res) => {
          VALUES (?, ?, ?, datetime('now'), ?, ?)`,
         [uid, username, true, ip, userAgent]
       );
+
+      // Fetch user info and set cookie
       res.cookie('loggedIn', 'true', { httpOnly: true, sameSite: 'lax' });
-      res.json({ success: true, role: user.role, username: user.username });
+      res.cookie('username', username, { httpOnly: true, sameSite: 'lax' });
+
+      // Redirect to the appropriate dashboard based on role
+      const dashboard = user.role === 'admin' ? 'admin.html' : 'user.html';
+      res.json({ 
+        success: true, 
+        message: 'Login successful', 
+        role: user.role, // Include role in the response
+        dashboard: dashboard // Include dashboard in the response
+      });
     });
   });
 });
 
-app.post('/login', (req, res) => {
-  const { username, passphrase } = req.body;
-  const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-  const userAgent = req.headers['user-agent'] || 'Unknown';
-
-  if (!username || !passphrase) {
-    return res.status(400).json({ success: false, message: 'Missing username or password' });
-  }
-
-  db.get('SELECT * FROM users WHERE username = ? AND status = ?', [username, 'active'], (err, user) => {
-    if (err) {
-      db.run(
-        `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
-         VALUES (?, ?, ?, datetime('now'), ?, ?)`,
-        [null, username, false, ip, userAgent]
-      );
-      return res.status(500).json({ success: false, message: 'Server error' });
-    }
-    if (!user) {
-      db.run(
-        `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
-         VALUES (?, ?, ?, datetime('now'), ?, ?)`,
-        [null, username, false, ip, userAgent]
-      );
-      return res.status(401).json({ success: false, message: 'Invalid credentials or inactive account' });
-    }
-    const uid = user.uid;
-    bcrypt.compare(passphrase, user.passphrase, (err, match) => {
-      if (err || !match) {
-        db.run(
-          `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
-           VALUES (?, ?, ?, datetime('now'), ?, ?)`,
-          [uid, username, false, ip, userAgent]
-        );
-        return res.status(401).json({ success: false, message: 'Invalid credentials' });
-      }
-      db.run(
-        `UPDATE users SET login_timestamp = datetime('now'), device_info = ? WHERE uid = ?`,
-        [userAgent, uid]
-      );
-      db.run(
-        `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
-         VALUES (?, ?, ?, datetime('now'), ?, ?)`,
-        [uid, username, true, ip, userAgent]
-      );
-      res.cookie('loggedIn', 'true', { httpOnly: true, sameSite: 'lax' });
-      res.json({ success: true, role: user.role, username: user.username });
+async function isOnline(username) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT status FROM users WHERE username = ?', [username], (err, row) => {
+      if (err) return reject(err);
+      resolve(row && row.status === 'online');
     });
   });
-});
+}
 
 // Logout endpoint
 app.post('/logout', (req, res) => {
@@ -203,7 +214,58 @@ app.post('/logout', (req, res) => {
 
 // Admin route (no regex)
 app.get('/admin', (req, res) => {
-  res.sendFile(path.join(publicDir, 'admin.html'));
+  const username = req.cookies.username;
+  if (!username) {
+    return res.status(401).send('Unauthorized: No username provided');
+  }
+  if (username !== 'admin') {
+    return res.status(403).send('Forbidden: Access restricted to admin users only');
+  }
+  isOnline(username)
+    .then((online) => {
+      if (!online) {
+        return res.status(403).send('Forbidden: User is not online');
+      }
+      res.sendFile(path.join(publicDir, 'admin.html'), { headers: { 'Content-Security-Policy': `script-src 'self';` } }, (err) => {
+        if (err) {
+          console.error('Error sending admin.html:', err);
+          res.status(500).send('Internal Server Error');
+        }
+      });
+    })
+    .catch((err) => {
+      console.error('Error checking online status:', err);
+      res.status(500).send('Internal Server Error');
+    });
+});
+
+app.get('/api/greeting', (req, res) => {
+  const username = req.cookies.username;
+  if (!username) {
+    return res.status(401).json({ greeting: null });
+  }
+  res.json({ greeting: `Welcome, ${username}!` });
+});
+
+app.get('/api/check-session', (req, res) => {
+  const loggedIn = req.cookies.loggedIn === 'true';
+  const username = req.cookies.username;
+
+  if (!loggedIn || !username) {
+    return res.status(401).json({ loggedIn: false });
+  }
+
+  isOnline(username)
+    .then((online) => {
+      if (!online) {
+        return res.status(401).json({ loggedIn: false });
+      }
+      res.json({ loggedIn: true });
+    })
+    .catch((err) => {
+      console.error('Error checking online status:', err);
+      res.status(500).json({ loggedIn: false });
+    });
 });
 
 // --- API: Get all users ---
@@ -222,7 +284,7 @@ app.post('/api/users', async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     db.run(
       'INSERT INTO users (username, passphrase, role, status, login_timestamp, device_info) VALUES (?, ?, ?, ?, datetime("now"), "API")',
-      [username, hashed, role, status],
+      [username.toLowerCase(), hashed, role, status],
       function (err) {
         if (err) {
           if (err.message.includes('UNIQUE constraint failed')) {

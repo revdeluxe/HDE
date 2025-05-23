@@ -43,3 +43,19 @@ CREATE TABLE IF NOT EXISTS ps_contacts (
     prune_on_boot VARCHAR(5),
     endpoint VARCHAR(40)
 );
+
+CREATE TABLE IF NOT EXISTS asterisk_contacts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  phone_number TEXT NOT NULL,
+  context TEXT DEFAULT 'default',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS asterisk_users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  password TEXT NOT NULL,
+  context TEXT DEFAULT 'default',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
