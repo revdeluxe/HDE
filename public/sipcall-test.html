@@ -3,10 +3,10 @@
 const userAgent = new SIP.UA({
   uri: 'webrtc_user@yourdomain.com',
   transportOptions: {
-    wsServers: ['wss://your-server:8089/ws']
+    wsServers: ['wss://192.168.18.17:8089/ws']
   },
   authorizationUsername: 'webrtc_user',
-  authorizationPassword: 'yourpassword',
+  authorizationPassword: 'hdecall',
   sessionDescriptionHandlerFactoryOptions: {
     constraints: {
       audio: true,

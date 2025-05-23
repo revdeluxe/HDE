@@ -1,179 +1,44 @@
-/<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>WebRTC SIP Dialer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Material Design Lite CSS & JS -->
-    <link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
-    <script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
-    <!-- Material Icons -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-    <!-- JsSIP library for SIP over WebRTC -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jssip/3.10.0/jssip.min.js"></script>
-    <style>
-        body { font-family: Roboto, Arial, sans-serif; margin: 2em; background: #f5f5f5; }
-        .dialer {
-            max-width: 400px;
-            margin: 2em auto;
-            padding: 2em;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        #status { margin: 1em 0; color: #007700; }
-        .admin-panel {
-            text-align: center;
-            margin-bottom: 2em;
-        }
-        .admin-panel .mdl-button {
-            margin: 0.3em;
-        }
-        .mdl-textfield {
-            width: 100%;
-        }
-        hr {
-            margin: 2em 0 1em 0;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>SIP.js 0.20+ WebRTC Client</title>
 </head>
 <body>
-  <div class="admin-panel">
-    <h2>ADMIN PANEL</h2>
-    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='rtc-dial.html'">DIALER</button>
-    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="location.href='phonebook.html'">EXPLORER</button>
-    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="location.href='user_management.html'">USER MANAGEMENT</button>
-    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary" onclick="location.href='sync.html'">LORA SYNC</button>
-    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" onclick="window.location.href='http://192.168.1.20'">AIRFIBER SETTINGS</button>
-    <button class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--colored" onclick="logout()">Log Out</button>
-  </div>
-    <div class="dialer mdl-shadow--2dp">
-        <h4>WebRTC SIP Dialer</h4>
-        <form action="#" onsubmit="return false;">
-        <div class="mdl-textfield mdl-js-textfield">
-            <input class="mdl-textfield__input" type="text" id="sip_uri" value="sip:1001@asterisk.local">
-            <label class="mdl-textfield__label" for="sip_uri">SIP URI</label>
-        </div>
-        <div class="mdl-textfield mdl-js-textfield">
-            <input class="mdl-textfield__input" type="text" id="sip_user" value="1000">
-            <label class="mdl-textfield__label" for="sip_user">SIP Username</label>
-        </div>
-        <div class="mdl-textfield mdl-js-textfield">
-            <input class="mdl-textfield__input" type="password" id="sip_pass" value="raspberry">
-            <label class="mdl-textfield__label" for="sip_pass">SIP Password</label>
-        </div>
-        <div class="mdl-textfield mdl-js-textfield">
-            <input class="mdl-textfield__input" type="text" id="sip_ws" value="wss://asterisk.local:8089/ws">
-            <label class="mdl-textfield__label" for="sip_ws">SIP WebSocket (WSS) URL</label>
-        </div>
-        <button type="button" id="register_btn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--primary">
-            Register
-        </button>
-        <hr>
-        <div class="mdl-textfield mdl-js-textfield">
-            <input class="mdl-textfield__input" type="text" id="dial_number" value="1001">
-            <label class="mdl-textfield__label" for="dial_number">Dial Number</label>
-        </div>
-        <button type="button" id="call_btn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent" disabled>
-            <i class="material-icons">call</i> Call
-        </button>
-        <button type="button" id="hangup_btn" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect" disabled>
-            <i class="material-icons">call_end</i> Hang Up
-        </button>
-        <div id="status"></div>
-        <audio id="remoteAudio" autoplay></audio>
-    </form>
-
-    </div>
-    <script>
-        let ua = null;
-        let session = null;
-
-        function setStatus(msg) {
-            document.getElementById('status').textContent = msg;
+  <h2>Status: <span id="status">Loading…</span></h2>
+  <script src="/js/sip.min.js"></script>
+  <script>
+    async function startSIP() {
+      const userAgent = new SIP.UserAgent({
+        uri: SIP.UserAgent.makeURI("sip:webrtc_user@192.168.18.17"),
+        transportOptions: {
+          server: "wss://192.168.18.17:8089/ws"
+        },
+        authorizationUsername: "webrtc_user",
+        authorizationPassword: "hdecall",
+        sessionDescriptionHandlerFactoryOptions: {
+          constraints: { audio: true, video: false }
+        },
+        delegate: {
+          onInvite(invitation) {
+            document.getElementById("status").innerText = "Incoming call ??";
+            console.log("Incoming call", invitation);
+          }
         }
+      });
 
-        document.getElementById('register_btn').onclick = function() {
-            const uri = document.getElementById('sip_user').value + '@' + document.getElementById('sip_uri').value.split('@')[1];
-            const ws_servers = document.getElementById('sip_ws').value;
-            const password = document.getElementById('sip_pass').value;
+      const registerer = new SIP.Registerer(userAgent);
 
-            if (ua) ua.stop();
-
-            ua = new JsSIP.UA({
-                uri: 'sip:' + uri,
-                password: password,
-                sockets: [ new JsSIP.WebSocketInterface(ws_servers) ],
-                session_timers: false
-            });
-
-            ua.on('registered', () => {
-                setStatus('Registered');
-                document.getElementById('call_btn').disabled = false;
-            });
-
-            ua.on('registrationFailed', (e) => {
-                setStatus('Registration failed: ' + e.cause);
-            });
-
-            ua.on('newRTCSession', function(e) {
-                session = e.session;
-
-                if (e.originator === 'local') {
-                    setStatus('Calling...');
-                } else {
-                    setStatus('Incoming call...');
-                }
-
-                session.on('ended', () => {
-                    setStatus('Call ended');
-                    document.getElementById('hangup_btn').disabled = true;
-                    document.getElementById('call_btn').disabled = false;
-                });
-
-                session.on('failed', () => {
-                    setStatus('Call failed');
-                    document.getElementById('hangup_btn').disabled = true;
-                    document.getElementById('call_btn').disabled = false;
-                });
-
-                session.on('accepted', () => {
-                    setStatus('Call in progress');
-                    document.getElementById('hangup_btn').disabled = false;
-                    document.getElementById('call_btn').disabled = true;
-                });
-
-                session.on('peerconnection', function(e) {
-                    e.peerconnection.addEventListener('track', function(ev) {
-                        document.getElementById('remoteAudio').srcObject = ev.streams[0];
-                    });
-                });
-            });
-
-            ua.start();
-            setStatus('Registering...');
-        };
-
-        document.getElementById('call_btn').onclick = function() {
-            if (!ua) return;
-            const number = document.getElementById('dial_number').value;
-            const domain = document.getElementById('sip_uri').value.split('@')[1];
-            const target = 'sip:' + number + '@' + domain;
-
-            ua.call(target, {
-                mediaConstraints: { audio: true, video: false },
-                rtcOfferConstraints: { offerToReceiveAudio: 1, offerToReceiveVideo: 0 }
-            });
-        };
-
-        document.getElementById('hangup_btn').onclick = function() {
-            if (session) session.terminate();
-        };
-
-        // Dummy logout function
-        function logout() {
-            window.location.href = '/logout';
-        }
-    </script>
+      try {
+        await userAgent.start();
+        await registerer.register();
+        document.getElementById("status").innerText = "Registered ?";
+      } catch (err) {
+        console.error("Registration error:", err);
+        document.getElementById("status").innerText = "Registration Failed ?";
+      }
+    }
+    startSIP();
+  </script>
 </body>
 </html>
