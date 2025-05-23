@@ -176,8 +176,11 @@
 
     // Dummy logout function
     function logout() {
-      alert('Logged out!');
-      // Implement your logout logic here
+      // Clear cookies and redirect to login
+      document.cookie.split(";").forEach(function(c) {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      window.location.href = "login.html";
     }
   </script>
 </body>
