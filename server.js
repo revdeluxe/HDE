@@ -13,8 +13,26 @@ const { execFile } = require('child_process');
 const app = express();
 const { exec } = require('child_process');
 const crypto = require('crypto');
+const AsteriskManager = require('asterisk-manager');
+const ami = new AsteriskManager(
+  5038,          // port
+  '127.0.0.1',   // host, change if needed
+  'alice',       // username
+  'adminalice',  // secret (password)
+  true           // keepConnected (auto reconnect)
+);
 
+ami.on('connect', () => {
+  console.log('AMI connected!');
+});
 
+ami.on('error', (err) => {
+  console.error('AMI error:', err);
+});
+
+ami.on('disconnect', () => {
+  console.log('AMI disconnected, trying to reconnect...');
+});
 
 // Constants
 const publicDir = path.join(__dirname, 'public');
@@ -56,42 +74,54 @@ app.use((req, res, next) => {
   next();
 });
 
-// --- API: Search Asterisk Contacts (for phonebook.html and phonebook_user.html) ---
 app.get('/api/asterisk/contacts', (req, res) => {
-  const searchQuery = req.query.search || '';
-  const sanitizedQuery = searchQuery.replace(/[^a-zA-Z0-9\s_-]/g, '').toLowerCase();
+  const contacts = [];
+  const actionId = `get-endpoints-${Date.now()}`;
 
-  exec('asterisk -rx "pjsip show contacts"', (error, stdout, stderr) => {
-    if (error) {
-      console.error('âŒ Exec error:', error.message);
-      return res.status(500).json({ error: error.message });
+  const onEvent = (event) => {
+    if (event.ActionID !== actionId) return;
+
+    if (event.Event === 'ContactStatus') {
+      contacts.push({
+        aorContactUri: event.URI || event.Contact || 'N/A',
+        hash: event.ContactStatusID || 'N/A',
+        status: event.Status || event.StatusDesc || 'Unknown',
+        rtt: event.RoundtripUsec ? (parseInt(event.RoundtripUsec) / 1000).toFixed(2) : 'N/A',
+      });
     }
 
-    console.log('[stdout]', stdout);
-    console.log('[stderr]', stderr);
-
-    res.json({ rawOutput: stdout });
-
-    const contacts = [];
-    const lines = stdout.split('\n');
-    lines.forEach(line => {
-      const match = line.match(/^(.*?)\s+(.*?)\s+(.*?)\s+Avail\s+(.*?)\s+/);
-      if (match) {
-        const name = match[1].trim();
-        const contact = match[2].trim();
-        const availability = match[4].trim();
-        if (
-          name.toLowerCase().includes(sanitizedQuery) ||
-          contact.toLowerCase().includes(sanitizedQuery)
-        ) {
-          contacts.push({ name, contact, availability });
-        }
-      }
+    if (event.Event === 'EndpointListComplete') {
+      ami.removeListener('event', onEvent);
+      console.log('Filtered contacts:', contacts);
+      res.json(contacts);
+    }
+    
+    if (event.Event === 'EndpointList' && !contacts.some(c => c.aorContactUri?.includes(event.AOR))) {
+      contacts.push({
+      aorContactUri: event.AOR,
+      hash: '—',
+      status: event.State || 'Unknown',
+      rtt: '—'
     });
+}
 
-    res.json(contacts);
+  };
+
+  ami.on('event', onEvent);
+
+  ami.action({
+    action: 'PJSIPShowEndpoints',
+    actionid: actionId
+  }, (err) => {
+    if (err) {
+      console.error('AMI error:', err);
+      ami.removeListener('event', onEvent);
+      return res.status(500).json({ error: 'AMI query failed' });
+    }
   });
 });
+
+
 
 app.post('/register', async (req, res) => {
   let { username, passphrase, role, status } = req.body;
