@@ -12,6 +12,8 @@ const bcrypt = require('bcrypt');
 const { execFile } = require('child_process');
 const app = express();
 const { exec } = require('child_process');
+const crypto = require('crypto');
+
 
 
 // Constants
@@ -54,52 +56,95 @@ app.use((req, res, next) => {
   next();
 });
 
-// Register endpoint
-app.post('/register', (req, res) => {
-  const pjsipEntry = `
-  //-------------------------------------------------
-  [${username}]
-  type=endpoint
-  context=default
-  disallow=all
-  allow=ulaw
-  auth=${username}
-  aors=${username}
-  webrtc=yes
-  dtls_auto_generate_cert=yes
+app.post('/register', async (req, res) => {
+  let { username, passphrase, role, status } = req.body;
 
-  [${username}]
-  type=auth
-  auth_type=userpass
-  username=${username}
-  password=${passphrase}
+  if (!username || !passphrase || !role || !status) {
+    return res.status(400).send('All fields are required');
+  }
 
-  [${username}]
-  type=aor
-  max_contacts=1
+  // Sanitize inputs
+  username = username.replace(/[^a-zA-Z0-9_-]/g, '');
+  passphrase = passphrase.replace(/[^a-zA-Z0-9!@#$%^&*()_+=-]/g, '');
+
+  // Hash password
+  const hashedPassphrase = await bcrypt.hash(passphrase, 10);
+
+  const loginTimestamp = new Date().toISOString();
+  const deviceInfo = JSON.stringify({
+    user_agent: req.headers['user-agent'],
+    ip_address: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+  });
+
+  // status as string, not numeric (keep 'active' or 'inactive')
+  // Use your schema's status as TEXT, not integer flag
+
+  const insertQuery = `
+    INSERT INTO users (username, passphrase, role, status, login_timestamp, device_info)
+    VALUES (?, ?, ?, ?, ?, ?)
   `;
 
-  fs.appendFile('/etc/asterisk/pjsip.conf', pjsipEntry, (err) => {
+  db.run(insertQuery, [username, hashedPassphrase, role, status, loginTimestamp, deviceInfo], function (err) {
     if (err) {
-      console.error('Failed to write to pjsip.conf:', err);
-      return res.status(500).send("Registration failed: Couldn't update SIP config.");
+      console.error('Database error during registration:', err.message);
+      return res.status(500).send("Failed to register user.");
     }
 
-    // Reload PJSIP config in Asterisk
-    exec('asterisk -rx "module reload res_pjsip.so"', (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Failed to reload Asterisk PJSIP module: ${stderr}`);
-        return res.status(500).send("Registration saved, but failed to reload Asterisk.");
+    res.send(`<h3>Registration successful!</h3><p>User <strong>${username}</strong> has been added to the system.</p><a href="/register.html">Go back</a>`);
+  });
+});
+
+app.post('/login', (req, res) => {
+  const { username, passphrase } = req.body;
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const userAgent = req.headers['user-agent'] || 'Unknown';
+
+  if (!username || !passphrase) {
+    return res.status(400).json({ success: false, message: 'Missing username or password' });
+  }
+
+  db.get('SELECT * FROM users WHERE username = ? AND status = ?', [username, 'active'], (err, user) => {
+    if (err) {
+      db.run(
+        `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
+         VALUES (?, ?, ?, datetime('now'), ?, ?)`,
+        [null, username, false, ip, userAgent]
+      );
+      return res.status(500).json({ success: false, message: 'Server error' });
+    }
+    if (!user) {
+      db.run(
+        `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
+         VALUES (?, ?, ?, datetime('now'), ?, ?)`,
+        [null, username, false, ip, userAgent]
+      );
+      return res.status(401).json({ success: false, message: 'Invalid credentials or inactive account' });
+    }
+    const uid = user.uid;
+    bcrypt.compare(passphrase, user.passphrase, (err, match) => {
+      if (err || !match) {
+        db.run(
+          `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
+           VALUES (?, ?, ?, datetime('now'), ?, ?)`,
+          [uid, username, false, ip, userAgent]
+        );
+        return res.status(401).json({ success: false, message: 'Invalid credentials' });
       }
-
-      console.log(`✅ Asterisk PJSIP reloaded:\n${stdout}`);
-      res.send(`<h3>Registration successful!</h3><p>SIP user: ${username} added to Asterisk</p><a href="/register.html">Go back</a>`);
+      db.run(
+        `UPDATE users SET login_timestamp = datetime('now'), device_info = ? WHERE uid = ?`,
+        [userAgent, uid]
+      );
+      db.run(
+        `INSERT INTO login_attempts (uid, username, success, attempt_timestamp, ip_address, user_agent)
+         VALUES (?, ?, ?, datetime('now'), ?, ?)`,
+        [uid, username, true, ip, userAgent]
+      );
+      res.cookie('loggedIn', 'true', { httpOnly: true, sameSite: 'lax' });
+      res.json({ success: true, role: user.role, username: user.username });
     });
+  });
 });
 
-});
-
-// Login endpoint
 app.post('/login', (req, res) => {
   const { username, passphrase } = req.body;
   const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;

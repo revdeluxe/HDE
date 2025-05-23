@@ -60,8 +60,32 @@
       <option value="active">Active</option>
       <option value="inactive">Inactive</option>
     </select>
+    <input type="hidden" name="device_info" id="device_info" />
 
-    <button type="submit">Register</button>
+  <button type="submit">Register</button>
+</form>
+
+<script>
+  // Get browser info and IP, then combine into one string or JSON
+
+  // Get browser info
+  const userAgent = navigator.userAgent;
+
+  // Fetch public IP and set device_info
+  fetch('https://api.ipify.org?format=json')
+    .then(response => response.json())
+    .then(data => {
+      const ip = data.ip;
+      // Combine as JSON string
+      const deviceInfo = JSON.stringify({ ip_address: ip, user_agent: userAgent });
+      document.getElementById('device_info').value = deviceInfo;
+    })
+    .catch(() => {
+      // fallback if IP fetch fails
+      const deviceInfo = JSON.stringify({ ip_address: 'unknown', user_agent: userAgent });
+      document.getElementById('device_info').value = deviceInfo;
+    });
+</script>
   </form>
 
 </body>
