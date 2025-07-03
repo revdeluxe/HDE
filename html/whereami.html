@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Details</title>
+</head>
+<body>
+    <h1>Server Details</h1>
+    <div id="server-details"></div>
+
+    <script>
+        const serverDetails = {
+            hostname: window.location.hostname,
+            port: window.location.port || 'default',
+            protocol: window.location.protocol,
+            pathname: window.location.pathname
+        };
+
+        const detailsDiv = document.getElementById('server-details');
+        detailsDiv.innerHTML = `
+            <p><strong>Hostname:</strong> ${serverDetails.hostname}</p>
+            <p><strong>Port:</strong> ${serverDetails.port}</p>
+            <p><strong>Protocol:</strong> ${serverDetails.protocol}</p>
+            <p><strong>Pathname:</strong> ${serverDetails.pathname}</p>
+        `;
+    </script>
+</body>
+</html>
