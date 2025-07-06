@@ -1,7 +1,8 @@
 from flask import Flask, jsonify, request, Response
 import json, time
 from message_store import MessageStore
-import config
+from config import ADMIN_USERS
+import socket
 
 app = Flask(__name__)
 store = MessageStore()
@@ -52,11 +53,12 @@ def user_settings():
             or {}
     })
 
-@app.route('/config/info')
+@app.route('/config/info', strict_slashes=False)
 def config_info():
     return jsonify({
-        'max_log': 1000,
-        'stream_debug': True
+        'hostname': socket.gethostname(),
+        'stream_quality': 'high',
+        'firmware_version': '1.0.0'
     })
 
 def load_config(path):
@@ -66,16 +68,15 @@ def load_config(path):
     except Exception:
         return {}
 
-@app.route('/config/info')
-def config_info():
+@app.route('/config/info/general')
+def config_info_general():
     return jsonify(load_config('config/general.json'))
 
-@app.route('/config/lora-gateway', methods=['POST'])
-def config_lora_gateway_update():
-    data = request.get_json(silent=True) or {}
-    with open('config/lora_gateway.json', 'w') as f:
-        json.dump(data, f, indent=2)
-    return jsonify({'status': 'saved'})
+
+@app.route('/config/info/lora-gateway')
+def config_lora_gateway_info():
+    return load_config('config/lora_gateway.json')
+
 
 @app.route('/config/info/lora-device')
 def config_lora_device():

@@ -1,6 +1,11 @@
-import json
+import json, os
 
-ADMIN_USERS = {"adminalice", "superadmin"}  # lowercase usernames
+ADMIN_USERS = {"Robin"}
 
-with open("admin_users.json") as f:
-    ADMIN_USERS = set(json.load(f))  # e.g., ["richard", "alice"]
+admin_path = "admin_users.json"
+if not os.path.exists(admin_path):
+    with open(admin_path, 'w') as f:
+        json.dump(["richard"], f)
+        print(f"🔧 Created default {admin_path}")
+with open(admin_path) as f:
+    ADMIN_USERS = set(json.load(f))

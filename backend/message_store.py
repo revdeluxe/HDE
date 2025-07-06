@@ -13,8 +13,16 @@ class MessageStore:
                 json.dump([], f)
 
     def _load(self):
-        with open(self.path, 'r') as f:
-            return json.load(f)
+        try:
+            with open(self.path, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                if not content:
+                    return []  # empty file = empty message list
+                return json.loads(content)
+        except (json.JSONDecodeError, FileNotFoundError) as e:
+            print(f"[WARN] Failed to load messages: {e}")
+            return []
+
 
     def _save(self, data):
         tmp = self.path + '.tmp'

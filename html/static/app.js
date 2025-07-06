@@ -95,7 +95,9 @@ async function loadAdminConfigs() {
   const panels = [
     ['/config/info',               'General Config'],
     ['/config/info/lora-gateway', 'LoRa Gateway'],
-    ['/config/info/lora-device',  'LoRa Device']
+    ['/config/info/lora-device',  'LoRa Device'],
+    ['/config/info/general', 'Backend General Info'],
+
   ];
 
   for (const [url, title] of panels) {
@@ -188,16 +190,26 @@ if (user) {
   document.getElementById('userName').style.display = 'inline';
 }
 
-// 4) Hostname (OS-level): fetch from backend
-fetch('/api/info')
+fetch('/config/info')
   .then(r => r.json())
   .then(info => {
-    document.getElementById('serverHostname').textContent = info.hostname;
-    document.getElementById('streamQuality').textContent = info.stream_quality;
+    const set = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    set('serverName', info.hostname ?? 'Unknown');
+    set('streamQuality', info.stream_quality ?? 'N/A');
+    set('firmware-version', info.firmware_version ?? '—');
   })
   .catch(() => {
-    // fallback: show “unknown”
-    document.getElementById('serverHostname').textContent = 'unknown';
-    document.getElementById('streamQuality').textContent = 'unknown';
-  });
-});
+    const set = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    set('serverName', 'Unknown');
+    set('streamQuality', 'Backend not available');
+      set('firmware-version', 'Lora module not available');
+    })
+  }); // <-- Close DOMContentLoaded event listener

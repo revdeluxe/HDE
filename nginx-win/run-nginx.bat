@@ -30,7 +30,7 @@ if errorlevel 1 (
 REM === Start nginx ===
 echo Starting nginx...
 REM === Test config ===
-nginx.exe -t -c conf\nginx.conf
+.\nginx.exe -t -c conf\nginx.conf
 REM === Check if nginx config test passed ===
 if errorlevel 1 (
     echo Nginx configuration test failed. Exiting...
@@ -38,7 +38,7 @@ if errorlevel 1 (
 )
 
 REM === Start nginx in foreground ===
-nginx.exe -c conf\nginx.conf -g "daemon off;"
+.\nginx.exe -c conf\nginx.conf -g "daemon off."
 
 
 endlocal

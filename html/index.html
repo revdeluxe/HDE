@@ -7,16 +7,6 @@
     <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
-    <div class="loader">
-        <div class="spinner"></div>
-        <p>Loading...</p>
-    </div>
-    <div id="configOverlay" class="config-overlay" hidden>
-    <div class="config-header">
-        <span>⚙️ Configuration Panel</span>
-        <button onclick="document.getElementById('configOverlay').hidden = true">✖</button>
-    </div>
-    <div class="config-content" id="configPanel"></div>
     </div>
     <header>
         <h1>🌐 LoRa Messaging App</h1>
@@ -24,6 +14,7 @@
         <span id="userName" class="user-name" style="display:none;">👤 <strong id="usernameField"></strong></span>
         <span class="status">🔗 Server:     <strong id="serverName"></strong></span>
         <span class="status">📶 Stream Quality: <strong id="streamQuality"></strong></span>
+        <span class="status">LoRa Version: <strong id="firmware-version"></strong></span>
     </header>
 
 
