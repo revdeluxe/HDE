@@ -1,10 +1,10 @@
 from flask import Flask, jsonify, request, Response
 import time, json, socket, utils
 
-# Handle GPIO import gracefully
+# ── GPIO Setup ────────────────────────────────────────────────────
 try:
     import RPi.GPIO as GPIO
-    GPIO.setmode(GPIO.BCM)  # Required for real Raspberry Pi usage
+    GPIO.setmode(GPIO.BCM)  # Use BCM unless BOARD wiring is preferred
 except ImportError:
     class GPIO:
         BCM = 'BCM'
@@ -14,16 +14,19 @@ except ImportError:
         RISING = 'RISING'
         FALLING = 'FALLING'
         BOTH = 'BOTH'
+        PUD_UP = 'PUD_UP'
+        PUD_DOWN = 'PUD_DOWN'
 
         @staticmethod
         def setmode(mode): print(f"[GPIO MOCK] setmode({mode})")
         @staticmethod
-        def setup(pin, mode): print(f"[GPIO MOCK] setup(pin={pin}, mode={mode})")
+        def setup(pin, mode, pull_up_down=None): print(f"[GPIO MOCK] setup(pin={pin}, mode={mode}, pull={pull_up_down})")
         @staticmethod
         def add_event_detect(pin, edge, callback=None): print(f"[GPIO MOCK] add_event_detect(pin={pin}, edge={edge})")
         @staticmethod
         def cleanup(): print("[GPIO MOCK] cleanup()")
 
+# ── Module Imports ────────────────────────────────────────────────
 from lora_interface import LoRaSender, LoRaReceiver
 from message_store import MessageStore
 from config import ADMIN_USERS
@@ -31,15 +34,15 @@ from config import ADMIN_USERS
 app = Flask(__name__)
 store = MessageStore()
 
-# LoRa setup
+# ── LoRa Initialization ───────────────────────────────────────────
 lora = LoRaSender()
 lora.set_freq(434.0)
 lora.set_spreading_factor(7)
 lora.set_pa_config(pa_select=1)
 
-# ── API Routes ─────────────────────────────────────────────────────────────────
+# ── API Endpoints ─────────────────────────────────────────────────
 
-@app.route('/api/ping', methods=['GET'])
+@app.route('/api/ping')
 def ping():
     return jsonify({'pong': True, 'server_time': time.time()})
 
@@ -52,7 +55,7 @@ def pong():
     print(f"[PONG] Client timestamp: {client_time}, Latency: {latency:.3f}s")
     return jsonify({'received': True, 'server_time': server_time, 'latency': latency})
 
-@app.route('/api/inbox', methods=['GET'])
+@app.route('/api/inbox')
 def get_inbox():
     return jsonify(store.all())
 
@@ -79,14 +82,51 @@ def lora_metrics():
     receiver.set_freq(434.0)
     receiver.set_spreading_factor(7)
     receiver.set_pa_config(pa_select=1)
-    status = receiver.get_status()
-    return jsonify(status)
+    return jsonify(receiver.get_status())
 
-# ── Config Endpoints ───────────────────────────────────────────────────────────
+@app.route('/api/send_lora', methods=['POST'])
+def send_over_lora():
+    data = request.get_json(silent=True) or {}
+    if not data.get('from') or not data.get('message'):
+        return jsonify({'error': 'need from & message'}), 400
+    msg = store.add(data['from'], data['message'])
+    success = lora.send_lora(msg)
+    return jsonify({'msg': msg, 'sent': success}), 201
+
+@app.route('/api/receive_lora')
+def receive_over_lora():
+    receiver = LoRaReceiver()
+    receiver.set_freq(434.0)
+    receiver.set_spreading_factor(7)
+    receiver.set_pa_config(pa_select=1)
+    msg, quality = receiver.listen_once(timeout=5)
+    if not msg:
+        return jsonify({'error': 'timeout'}), 504
+    return jsonify({'msg': msg, 'stream_quality': quality})
+
+@app.route('/api/stream')
+def message_stream():
+    def event_stream():
+        last_index = len(store.all())
+        while True:
+            all_msgs = store.all()
+            for msg in all_msgs[last_index:]:
+                payload = json.dumps(msg)
+                yield f"event: message\ndata: {payload}\n\n"
+            last_index = len(all_msgs)
+            time.sleep(1)
+    return Response(event_stream(), mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+# ── Config Endpoints ──────────────────────────────────────────────
 
 @app.route('/config/info', strict_slashes=False)
 def config_info():
-    return jsonify({'hostname': socket.gethostname(), 'stream_quality': 'high', 'firmware_version': '1.0.0'})
+    return jsonify({
+        'hostname': socket.gethostname(),
+        'stream_quality': 'high',
+        'firmware_version': '1.0.0'
+    })
 
 def load_config(path):
     try:
@@ -113,46 +153,7 @@ def config_lora_device_update():
     # Perform update logic here
     return jsonify({'status': 'success'})
 
-# ── LoRa Messaging ─────────────────────────────────────────────────────────────
-
-@app.route('/api/send_lora', methods=['POST'])
-def send_over_lora():
-    data = request.get_json(silent=True) or {}
-    if not data.get('from') or not data.get('message'):
-        return jsonify({'error': 'need from & message'}), 400
-    msg = store.add(data['from'], data['message'])
-    success = lora.send_lora(msg)
-    return jsonify({'msg': msg, 'sent': success}), 201
-
-@app.route('/api/receive_lora')
-def receive_over_lora():
-    receiver = LoRaReceiver()
-    receiver.set_freq(434.0)
-    receiver.set_spreading_factor(7)
-    receiver.set_pa_config(pa_select=1)
-    msg, quality = receiver.listen_once(timeout=5)
-    if not msg:
-        return jsonify({'error': 'timeout'}), 504
-    return jsonify({'msg': msg, 'stream_quality': quality})
-
-# ── Streaming Events ───────────────────────────────────────────────────────────
-
-@app.route('/api/stream')
-def message_stream():
-    def event_stream():
-        last_index = len(store.all())
-        while True:
-            all_msgs = store.all()
-            for msg in all_msgs[last_index:]:
-                payload = json.dumps(msg)
-                yield f"event: message\ndata: {payload}\n\n"
-            last_index = len(all_msgs)
-            time.sleep(1)
-    return Response(event_stream(),
-                    mimetype='text/event-stream',
-                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
-
-# ── Entry Point ────────────────────────────────────────────────────────────────
+# ── App Entry Point ───────────────────────────────────────────────
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
