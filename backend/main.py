@@ -1,19 +1,28 @@
-from flask import Flask, jsonify, request, Response
-import time, json, socket, utils
+import RPi.GPIO as GPIO
+from flask             import Flask, jsonify, request, Response
 from SX127x.board_config import BOARD
-from lora_interface import LoRaSender, LoRaReceiver
-from message_store import MessageStore
-from config import ADMIN_USERS
+from lora_interface    import LoRaSender, LoRaReceiver
+from message_store     import MessageStore
+from config            import ADMIN_USERS
+import time, json, socket, utils
 
-app = Flask(__name__)
-store = MessageStore()
-
-# ── LoRa Initialization ───────────────────────────────────────────
+# --- GPIO cleanup + one-time board setup -------------------------------
+GPIO.setmode(GPIO.BCM)
+GPIO.cleanup()
 BOARD.setup()
-lora = LoRaSender()
-lora.set_freq(434.0)
-lora.set_spreading_factor(7)
-lora.set_pa_config(pa_select=1)
+
+# --- Create one sender + one receiver ---------------------------------
+sender   = LoRaSender()
+receiver = LoRaReceiver()
+
+# configure both radios
+for radio in (sender, receiver):
+    radio.set_freq(434.0)
+    radio.set_spreading_factor(7)
+    radio.set_pa_config(pa_select=1)
+
+app   = Flask(__name__)
+store = MessageStore()
 
 # ── API Endpoints ─────────────────────────────────────────────────
 
@@ -54,31 +63,20 @@ def user_settings():
 @app.route('/api/lora_metrics')
 def lora_metrics():
     try:
-        r = LoRaReceiver()
-        r.set_freq(434.0)
-        r.set_spreading_factor(7)
-        r.set_pa_config(pa_select=1)
-        return jsonify(r.get_status())
+        return jsonify(receiver.get_status())
     except Exception as e:
         app.logger.exception("LoRa metrics failed")
         return jsonify({"error": str(e)}), 500
 
-
 @app.route('/api/send_lora', methods=['POST'])
 def send_over_lora():
     data = request.get_json(silent=True) or {}
-    if not data.get('from') or not data.get('message'):
-        return jsonify({'error': 'need from & message'}), 400
-    msg = store.add(data['from'], data['message'])
-    success = lora.send_lora(msg)
+    msg  = store.add(data['from'], data['message'])
+    success = sender.send_lora(msg)
     return jsonify({'msg': msg, 'sent': success}), 201
 
 @app.route('/api/receive_lora')
 def receive_over_lora():
-    receiver = LoRaReceiver()
-    receiver.set_freq(434.0)
-    receiver.set_spreading_factor(7)
-    receiver.set_pa_config(pa_select=1)
     msg, quality = receiver.listen_once(timeout=5)
     if not msg:
         return jsonify({'error': 'timeout'}), 504
@@ -89,17 +87,26 @@ def message_stream():
     def event_stream():
         last_index = len(store.all())
         while True:
+            # 1) new chat messages
             all_msgs = store.all()
             for msg in all_msgs[last_index:]:
                 yield f"event: message\ndata: {json.dumps(msg)}\n\n"
             last_index = len(all_msgs)
 
-            # send a heartbeat every second
+            # 2) push RF stats every second
+            stats = receiver.get_status() 
+            yield f"event: quality\ndata: {json.dumps(stats)}\n\n"
+
+            # 3) heartbeat (optional)
             yield "event: heartbeat\ndata: {}\n\n"
+
             time.sleep(1)
-    return Response(event_stream(),
-                    mimetype='text/event-stream',
-                    headers={'Cache-Control':'no-cache','X-Accel-Buffering':'no'})
+    return Response(
+        event_stream(),
+        mimetype='text/event-stream',
+        headers={'Cache-Control':'no-cache','X-Accel-Buffering':'no'}
+    )
+
 
 # ── Config Endpoints ──────────────────────────────────────────────
 
@@ -140,3 +147,4 @@ def config_lora_device_update():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+

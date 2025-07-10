@@ -216,4 +216,53 @@ fetch('/config/info')
     set('streamQuality', 'Backend not available');
       set('firmware-version', 'Lora module not available');
   });
+  
+  // after "DOM ready"…
+const es = new EventSource('/api/stream');
+
+es.addEventListener('message', e => { /* existing chat logic */ });
+
+es.addEventListener('quality', e => {
+  const { rssi, snr, gain_dbi } = JSON.parse(e.data);
+  const linkBudget = rssi + gain_dbi;
+  const label = getStreamQuality(linkBudget, snr);
+  updateStreamQualityDisplay(label, linkBudget, snr);
+
+  // auto-send over LoRa when link is good
+  if (label === 'Excellent' || label === 'Good') {
+    // grab any unsent messages (status 'pending') in the DOM
+    document
+      .querySelectorAll('.message.pending')
+      .forEach(div => {
+        const text = div.textContent.split(': ').slice(1).join(': ');
+        fetch('/api/send_lora', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ from: getUserName(), message: text })
+        })
+        .then(res => res.ok
+          ? div.classList.replace('pending','sent')
+          : div.classList.replace('pending','error')
+        )
+        .catch(() => div.classList.replace('pending','error'));
+      });
+  }
+});
+
+es.onerror = () => console.warn('SSE failed');
+
+form.addEventListener('submit', e => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  appendMessage({
+    from: getUserName(),
+    message: text,
+    status: 'pending',
+    id: Date.now()
+  });
+});
+
 
