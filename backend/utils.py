@@ -2,6 +2,11 @@ import struct
 import time
 import zlib
 import json
+import os
+
+def ensure_cache_dir(path):
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
 
 def encode_message(msg):
     try:
@@ -62,13 +67,22 @@ def calculate_quality(diff_score, latency,
 
 def crc_score(payload_bytes, message_cache="data/message.json"):
     current_ts = int(time.time())
-    decoded = decode_message(payload_bytes)
+    decoded    = decode_message(payload_bytes)
     if "error" in decoded:
         return 0
 
+    # 1) compute quality
     diff_score = compare_with_existing_json(decoded, message_cache)
     latency    = current_ts - decoded["timestamp"]
-    # Optionally update cache here if you want:
-    # with open(message_cache, "w") as f:
-    #     json.dump([decoded], f)
-    return calculate_quality(diff_score, latency)
+    quality    = calculate_quality(diff_score, latency)
+
+    # 2) update cache for next comparison
+    try:
+        # store as a single-element list or append to history
+        with open(message_cache, "w") as f:
+            json.dump([decoded], f)
+    except OSError:
+        pass
+
+    return quality
+

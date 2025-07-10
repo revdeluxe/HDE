@@ -54,20 +54,6 @@ async function loadMessages() {
   }
 }
 
-async function loadLoraMetrics() {
-  try {
-    const res = await fetch('/api/lora_metrics');
-    const { rssi, snr, gain_dbi } = await res.json();
-    // Convert RSSI (dBm) + antenna gain (dBi) → link budget
-    const linkBudget = rssi + gain_dbi;
-    const quality = getStreamQuality(linkBudget, snr);
-    updateStreamQualityDisplay(quality, linkBudget, snr);
-  } catch (e) {
-    console.error('LoRa metrics error', e);
-    updateStreamQualityDisplay('Offline', null, null);
-  }
-}
-
 
 
 function getStreamQuality(linkBudget, snr) {
@@ -164,14 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const es = new EventSource('/api/stream');
   es.addEventListener('message', e => { /* appendMessage */ });
   es.onerror = () => console.warn('SSE failed');
-  fetch('/api/user/settings')
-  .then(res => res.json())
-  .then(async settings => {
-    if (settings.is_admin) {
-      document.getElementById('configOverlay').hidden = false;
-      await loadAdminConfigs();
-    }
-  });
+
 
 
   form.addEventListener('submit', e => {
@@ -181,9 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
     input.value = '';
     sendMessage(text);
   });
-
-  // 1) load history
-  loadLoraMetrics();
 
   // 2) subscribe to SSE for new messages
   if (window.EventSource) {
@@ -202,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
       loadLoraMetrics();
     }, 5000);
   }
-}
+});
 
   
 // 1) Helper to read a cookie
@@ -239,5 +215,5 @@ fetch('/config/info')
     set('serverName', 'Unknown');
     set('streamQuality', 'Backend not available');
       set('firmware-version', 'Lora module not available');
-    })
-  }); // <-- Close DOMContentLoaded event listener
+  });
+

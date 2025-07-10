@@ -1,32 +1,6 @@
 from flask import Flask, jsonify, request, Response
 import time, json, socket, utils
-
-# ── GPIO Setup ────────────────────────────────────────────────────
-try:
-    import RPi.GPIO as GPIO
-    GPIO.setmode(GPIO.BCM)  # Use BCM unless BOARD wiring is preferred
-except ImportError:
-    class GPIO:
-        BCM = 'BCM'
-        BOARD = 'BOARD'
-        OUT = 'OUT'
-        IN = 'IN'
-        RISING = 'RISING'
-        FALLING = 'FALLING'
-        BOTH = 'BOTH'
-        PUD_UP = 'PUD_UP'
-        PUD_DOWN = 'PUD_DOWN'
-
-        @staticmethod
-        def setmode(mode): print(f"[GPIO MOCK] setmode({mode})")
-        @staticmethod
-        def setup(pin, mode, pull_up_down=None): print(f"[GPIO MOCK] setup(pin={pin}, mode={mode}, pull={pull_up_down})")
-        @staticmethod
-        def add_event_detect(pin, edge, callback=None): print(f"[GPIO MOCK] add_event_detect(pin={pin}, edge={edge})")
-        @staticmethod
-        def cleanup(): print("[GPIO MOCK] cleanup()")
-
-# ── Module Imports ────────────────────────────────────────────────
+from SX127x.board_config import BOARD
 from lora_interface import LoRaSender, LoRaReceiver
 from message_store import MessageStore
 from config import ADMIN_USERS
@@ -35,6 +9,7 @@ app = Flask(__name__)
 store = MessageStore()
 
 # ── LoRa Initialization ───────────────────────────────────────────
+BOARD.setup()
 lora = LoRaSender()
 lora.set_freq(434.0)
 lora.set_spreading_factor(7)
@@ -78,11 +53,16 @@ def user_settings():
 
 @app.route('/api/lora_metrics')
 def lora_metrics():
-    receiver = LoRaReceiver()
-    receiver.set_freq(434.0)
-    receiver.set_spreading_factor(7)
-    receiver.set_pa_config(pa_select=1)
-    return jsonify(receiver.get_status())
+    try:
+        r = LoRaReceiver()
+        r.set_freq(434.0)
+        r.set_spreading_factor(7)
+        r.set_pa_config(pa_select=1)
+        return jsonify(r.get_status())
+    except Exception as e:
+        app.logger.exception("LoRa metrics failed")
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/send_lora', methods=['POST'])
 def send_over_lora():
@@ -111,12 +91,15 @@ def message_stream():
         while True:
             all_msgs = store.all()
             for msg in all_msgs[last_index:]:
-                payload = json.dumps(msg)
-                yield f"event: message\ndata: {payload}\n\n"
+                yield f"event: message\ndata: {json.dumps(msg)}\n\n"
             last_index = len(all_msgs)
+
+            # send a heartbeat every second
+            yield "event: heartbeat\ndata: {}\n\n"
             time.sleep(1)
-    return Response(event_stream(), mimetype='text/event-stream',
-                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+    return Response(event_stream(),
+                    mimetype='text/event-stream',
+                    headers={'Cache-Control':'no-cache','X-Accel-Buffering':'no'})
 
 # ── Config Endpoints ──────────────────────────────────────────────
 
