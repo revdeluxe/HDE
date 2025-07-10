@@ -54,19 +54,40 @@ async function loadMessages() {
   }
 }
 
-function getStreamQuality(clientRTT, serverRTT) {
-  if (clientRTT < 100 && serverRTT < 100) return 'Excellent';
-  if (clientRTT < 200 || serverRTT < 200) return 'Good';
-  if (clientRTT < 400 || serverRTT < 400) return 'Fair';
+async function loadLoraMetrics() {
+  try {
+    const res = await fetch('/api/lora_metrics');
+    const { rssi, snr, gain_dbi } = await res.json();
+    // Convert RSSI (dBm) + antenna gain (dBi) → link budget
+    const linkBudget = rssi + gain_dbi;
+    const quality = getStreamQuality(linkBudget, snr);
+    updateStreamQualityDisplay(quality, linkBudget, snr);
+  } catch (e) {
+    console.error('LoRa metrics error', e);
+    updateStreamQualityDisplay('Offline', null, null);
+  }
+}
+
+
+
+function getStreamQuality(linkBudget, snr) {
+  // linkBudget in dBm+dBi (higher = better), snr in dB
+  if (linkBudget > -80 && snr > 7)   return 'Excellent';
+  if (linkBudget > -90 && snr > 5)   return 'Good';
+  if (linkBudget > -100 && snr > 2)  return 'Fair';
   return 'Poor';
 }
 
-function updateStreamQualityDisplay(label, cRtt, sRtt) {
+
+function updateStreamQualityDisplay(label, linkBudget, snr) {
   const el = document.getElementById('streamQuality');
   el.textContent = `${label}` +
-    (cRtt ? ` (${Math.round(cRtt)}ms ⬅️ / ${Math.round(sRtt)}ms ➡️)` : '');
+    (linkBudget != null
+      ? ` (${linkBudget.toFixed(1)} dBm+dBi / SNR ${snr.toFixed(1)} dB)`
+      : '');
   el.className = `status stream-quality ${label}`;
 }
+
 
 function getUserName() {
   const match = document.cookie.match(/(?:^|;\s*)username=([^;]+)/);
@@ -140,7 +161,9 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM ready');
   const form = document.getElementById('messageForm');
   const input = document.getElementById('messageInput');
-
+  const es = new EventSource('/api/stream');
+  es.addEventListener('message', e => { /* appendMessage */ });
+  es.onerror = () => console.warn('SSE failed');
   fetch('/api/user/settings')
   .then(res => res.json())
   .then(async settings => {
@@ -160,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // 1) load history
-  loadMessages();
+  loadLoraMetrics();
 
   // 2) subscribe to SSE for new messages
   if (window.EventSource) {
@@ -174,9 +197,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   } else {
-    // fallback: simple polling
-    setInterval(loadMessages, 3000);
+    setInterval(() => {
+      loadMessages();
+      loadLoraMetrics();
+    }, 5000);
   }
+}
+
+  
 // 1) Helper to read a cookie
 function getCookie(name) {
   const m = document.cookie.match(new RegExp('(?:^|; )'+ name +'=([^;]*)'));

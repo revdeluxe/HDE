@@ -1,11 +1,16 @@
-from flask import Flask, jsonify, request, Response
-import json, time
+from flask import Flask, jsonify, request
+import time, json, socket, utils
+from lora_interface import LoRaSender, LoRaReceiver
 from message_store import MessageStore
 from config import ADMIN_USERS
-import socket
 
 app = Flask(__name__)
 store = MessageStore()
+
+lora = LoRaSender()
+lora.set_freq(434.0)
+lora.set_spreading_factor(7)
+lora.set_pa_config(pa_select=1)
 
 @app.route('/api/ping', methods=['GET'])
 def ping():
@@ -52,7 +57,22 @@ def user_settings():
             and {"max_log": 1000, "stream_debug": True}
             or {}
     })
+    
+@app.route('/api/lora_metrics')
+def lora_metrics():
+    # assume you have a global receiver instance
+    from lora_interface import LoRaReceiver
+    r = LoRaReceiver()
+    r.set_freq(434.0)
+    r.set_spreading_factor(7)
+    r.set_pa_config(pa_select=1)
 
+    # listen just long enough to grab status (no payload)
+    status = r.get_status()  
+    # status might return {"rssi": -70, "snr": 9.3, "gain_dbi": 2.15}
+    return jsonify(status)
+
+    
 @app.route('/config/info', strict_slashes=False)
 def config_info():
     return jsonify({
@@ -92,6 +112,31 @@ def config_lora_device_update():
     # Update the configuration with the new data
     return jsonify({'status': 'success'})
 
+@app.route('/api/send_lora', methods=['POST'])
+def send_over_lora():
+    data = request.get_json() or {}
+    if not data.get('from') or not data.get('message'):
+        return jsonify(error="need from & message"), 400
+
+    # 1) store it
+    msg = store.add(data['from'], data['message'])
+    # 2) send it via LoRa
+    success = lora.send_lora(msg)
+    return jsonify(msg=msg, sent=success), 201
+
+@app.route('/api/receive_lora')
+def receive_over_lora():
+    receiver = LoRaReceiver()
+    receiver.set_freq(434.0)
+    receiver.set_spreading_factor(7)
+    receiver.set_pa_config(pa_select=1)
+
+    msg, quality = receiver.listen_once(timeout=5)
+    if not msg:
+        return jsonify(error="timeout"), 504
+    # optionally store or stream it
+    return jsonify(msg=msg, stream_quality=quality)
+
 @app.route('/api/stream')
 def message_stream():
     def event_stream():
@@ -111,3 +156,4 @@ def message_stream():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+
