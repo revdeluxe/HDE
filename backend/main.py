@@ -45,6 +45,7 @@ def send_chunks():
         time.sleep(INTER_CHUNK_DELAY)
 
 @app.route('/api/send', methods=['POST'])
+<<<<<<< HEAD
 def api_send():
     d = request.get_json() or {}
     sender_name = d.get("from")
@@ -60,6 +61,53 @@ def api_send():
 @app.route('/api/inbox')
 def api_inbox():
     return jsonify(store.all())
+=======
+def send_message():
+    data = request.get_json() or {}
+    sender_name = data.get('from')
+    text        = data.get('message')
+    if not sender_name or not text:
+        return jsonify({'error':'need from & message'}),400
+
+    # 1) add to local store
+    msg = store.add(sender_name, text)
+
+    # 2) broadcast over LoRa with a "type" envelope
+    payload = {"type":"message", "msg": msg}
+    sender.send_lora(payload)
+
+    return jsonify(msg), 201
+
+
+@app.route('/api/user/settings')
+def user_settings():
+    username = request.cookies.get('username', '').lower()
+    is_admin = username in ADMIN_USERS
+    config_options = {"max_log": 1000, "stream_debug": True} if is_admin else {}
+    return jsonify({'username': username, 'is_admin': is_admin, 'config_options': config_options})
+
+@app.route('/api/lora_metrics')
+def lora_metrics():
+    try:
+        return jsonify(receiver.get_status())
+    except Exception as e:
+        app.logger.exception("LoRa metrics failed")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/send_lora', methods=['POST'])
+def send_over_lora():
+    data = request.get_json(silent=True) or {}
+    msg  = store.add(data['from'], data['message'])
+    success = sender.send_lora(msg)
+    return jsonify({'msg': msg, 'sent': success}), 201
+
+@app.route('/api/receive_lora')
+def receive_over_lora():
+    msg, quality = receiver.listen_once(timeout=5)
+    if not msg:
+        return jsonify({'error': 'timeout'}), 504
+    return jsonify({'msg': msg, 'stream_quality': quality})
+>>>>>>> 55e9d30b4c2fbdb827eafa73b3464c7e7165ba40
 
 @app.route('/api/stream')
 def api_stream():
@@ -68,6 +116,7 @@ def api_stream():
         syncing = False
 
         while True:
+<<<<<<< HEAD
             pkt,_ = receiver.listen_once(timeout=0.1)
             if pkt:
                 ptype = pkt.get("type")
@@ -115,6 +164,29 @@ def api_stream():
             # heartbeat
             yield "event: heartbeat\ndata:{{}}\n\n"
             time.sleep(1)
+=======
+            # 1) pull in any LoRa packets
+            pkt, _ = receiver.listen_once(timeout=0.1)
+            if pkt and pkt.get("type") == "message":
+                msg = pkt["msg"]
+                # merge into local store
+                store.add(msg["from"], msg["message"], msg_id=msg["id"], ts=msg["ts"])
+
+            # 2) emit new chat msgs via SSE
+            all_msgs = store.all()
+            for m in all_msgs[last_index:]:
+                yield f"event: message\ndata: {json.dumps(m)}\n\n"
+            last_index = len(all_msgs)
+
+            # 3) heartbeat + link-stats
+            stats = receiver.get_status()
+            yield f"event: quality\ndata: {json.dumps(stats)}\n\n"
+
+            time.sleep(1)
+    return Response( event_stream(),
+                     mimetype='text/event-stream',
+                     headers={'Cache-Control':'no-cache','X-Accel-Buffering':'no'} )
+>>>>>>> 55e9d30b4c2fbdb827eafa73b3464c7e7165ba40
 
     return Response(gen(),
                     mimetype='text/event-stream',
