@@ -7,9 +7,15 @@ class LoRaSender:
     def __init__(self, radio: LoRa):
         self.radio = radio
 
-    def send_lora(self, env: dict) -> bool:
-        raw = encode_envelope(env)
-        return self.radio.write_payload(list(raw))
+    def send_lora(self, env):
+            raw = encode_envelope(env)
+            print("Sending:", env)
+            try:
+                result = self.radio.write_payload(list(raw))
+                print("Sent bytes:", result)
+            except Exception as e:
+                print("LoRa send failed:", e)
+
 
 
 class LoRaReceiver:
@@ -27,7 +33,7 @@ class LoRaReceiver:
                     return env, None
                 except Exception:
                     return None, None
-            time.sleep(0.01)
+            time.sleep(1)
         return None, None
 
     def get_status(self):
