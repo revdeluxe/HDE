@@ -1,7 +1,10 @@
 from flask import Flask, jsonify, request, Response
 import time, json, socket, utils
+
+# Handle GPIO import gracefully
 try:
     import RPi.GPIO as GPIO
+    GPIO.setmode(GPIO.BCM)  # Required for real Raspberry Pi usage
 except ImportError:
     class GPIO:
         BCM = 'BCM'
@@ -21,7 +24,6 @@ except ImportError:
         @staticmethod
         def cleanup(): print("[GPIO MOCK] cleanup()")
 
-# main.py
 from lora_interface import LoRaSender, LoRaReceiver
 from message_store import MessageStore
 from config import ADMIN_USERS
@@ -29,11 +31,13 @@ from config import ADMIN_USERS
 app = Flask(__name__)
 store = MessageStore()
 
-# LoRa setup (shared instance)
+# LoRa setup
 lora = LoRaSender()
 lora.set_freq(434.0)
 lora.set_spreading_factor(7)
 lora.set_pa_config(pa_select=1)
+
+# ── API Routes ─────────────────────────────────────────────────────────────────
 
 @app.route('/api/ping', methods=['GET'])
 def ping():
@@ -78,6 +82,8 @@ def lora_metrics():
     status = receiver.get_status()
     return jsonify(status)
 
+# ── Config Endpoints ───────────────────────────────────────────────────────────
+
 @app.route('/config/info', strict_slashes=False)
 def config_info():
     return jsonify({'hostname': socket.gethostname(), 'stream_quality': 'high', 'firmware_version': '1.0.0'})
@@ -107,6 +113,8 @@ def config_lora_device_update():
     # Perform update logic here
     return jsonify({'status': 'success'})
 
+# ── LoRa Messaging ─────────────────────────────────────────────────────────────
+
 @app.route('/api/send_lora', methods=['POST'])
 def send_over_lora():
     data = request.get_json(silent=True) or {}
@@ -127,6 +135,8 @@ def receive_over_lora():
         return jsonify({'error': 'timeout'}), 504
     return jsonify({'msg': msg, 'stream_quality': quality})
 
+# ── Streaming Events ───────────────────────────────────────────────────────────
+
 @app.route('/api/stream')
 def message_stream():
     def event_stream():
@@ -140,8 +150,9 @@ def message_stream():
             time.sleep(1)
     return Response(event_stream(),
                     mimetype='text/event-stream',
-                    headers={'Cache-Control': 'no-cache',
-                             'X-Accel-Buffering': 'no'})
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+# ── Entry Point ────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
