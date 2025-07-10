@@ -1,11 +1,9 @@
 import json, os
 
-ADMIN_USERS = {"Robin"}
-
-admin_path = "admin_users.json"
+admin_path = "config/admin_users.json"
 if not os.path.exists(admin_path):
-    with open(admin_path, 'w') as f:
+    with open(admin_path,'w') as f:
         json.dump(["richard"], f)
-        print(f"🔧 Created default {admin_path}")
 with open(admin_path) as f:
-    ADMIN_USERS = set(json.load(f))
+    data = json.load(f)
+ADMIN_USERS = set(data if isinstance(data,list) else data.get("admins",[]))

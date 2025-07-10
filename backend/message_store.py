@@ -1,47 +1,64 @@
-import json
-import os
-import threading
-from datetime import datetime
+import json, time, uuid, socket
+from threading import Lock
+
+STORE_FILE = 'messages.json'
 
 class MessageStore:
-    def __init__(self, path='data/messages.json'):
-        self.path = path
-        self.lock = threading.Lock()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        if not os.path.exists(path):
-            with open(path, 'w') as f:
-                json.dump([], f)
+    def __init__(self):
+        self.lock   = Lock()
+        self.self_id = socket.gethostname()
+        self._load()
 
     def _load(self):
         try:
-            with open(self.path, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-                if not content:
-                    return []  # empty file = empty message list
-                return json.loads(content)
-        except (json.JSONDecodeError, FileNotFoundError) as e:
-            print(f"[WARN] Failed to load messages: {e}")
-            return []
+            with open(STORE_FILE) as f:
+                self._msgs = json.load(f)
+        except FileNotFoundError:
+            self._msgs = []
+        except json.JSONDecodeError:
+            self._msgs = []
 
+    def _save(self):
+        with open(STORE_FILE, 'w') as f:
+            json.dump(self._msgs, f, indent=2)
 
-    def _save(self, data):
-        tmp = self.path + '.tmp'
-        with open(tmp, 'w') as f:
-            json.dump(data, f, indent=2)
-        os.replace(tmp, self.path)
-
-    def add(self, sender, text):
+    def add(self, sender, text, msg_id=None, ts=None, origin=None):
+        origin = origin or self.self_id
+        msg_id = msg_id or f"{sender}-{uuid.uuid4()}"
+        ts     = ts or time.time()
         msg = {
-            'from': sender,
-            'message': text,
-            'timestamp': datetime.utcnow().isoformat()
+            "id":      msg_id,
+            "from":    sender,
+            "message": text,
+            "ts":      ts,
+            "origin":  origin,
+            "status":  "pending" if origin == self.self_id else "received"
         }
         with self.lock:
-            data = self._load()
-            data.append(msg)
-            self._save(data)
+            if not any(m["id"] == msg_id for m in self._msgs):
+                self._msgs.append(msg)
+                self._save()
         return msg
 
     def all(self):
         with self.lock:
-            return self._load()
+            return list(self._msgs)
+
+    def confirm(self, msg_id):
+        with self.lock:
+            for m in self._msgs:
+                if m["id"] == msg_id:
+                    m["status"] = "confirmed"
+                    self._save()
+                    return True
+        return False
+
+    def checksum(self):
+        """CRC32 of entire JSON bytes for sync-check."""
+        import zlib
+        data = json.dumps(self._msgs, separators=(',',':')).encode('utf-8')
+        return zlib.crc32(data) & 0xFFFFFFFF
+
+    def to_bytes(self):
+        """Return raw JSON bytes for chunked sync."""
+        return json.dumps(self._msgs, separators=(',',':')).encode('utf-8')

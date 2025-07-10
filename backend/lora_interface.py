@@ -1,62 +1,38 @@
+# lora_interface.py
 import time
-import RPi.GPIO as GPIO
-from SX127x.LoRa       import LoRa, MODE
-from SX127x.board_config import BOARD
-from utils             import encode_message, decode_message, crc_score
+from SX127x.LoRa import LoRa
+from utils import encode_envelope, decode_envelope
 
-GPIO.setwarnings(False)
+class LoRaSender:
+    def __init__(self, radio: LoRa):
+        self.radio = radio
 
-# --- One-time board setup ---------------------------------------------
-_setup_done = False
-def safe_board_setup():
-    global _setup_done
-    if not _setup_done:
-        BOARD.setup()
-        _setup_done = True
+    def send_lora(self, env: dict) -> bool:
+        raw = encode_envelope(env)
+        return self.radio.write_payload(list(raw))
 
-# --- Sender ------------------------------------------------------------
-class LoRaSender(LoRa):
-    def __init__(self, **kwargs):
-        safe_board_setup()        # ? only first call will actually run BOARD.setup()
-        super().__init__(**kwargs) 
-        self.set_mode(MODE.SLEEP) # use the imported MODE, not self.MODE
-        self.set_dio_mapping([1,0,0,0,0,0])
 
-    def send_lora(self, msg_dict):
-        raw = encode_message(msg_dict)
-        self.write_payload(list(raw))
-        self.set_mode(MODE.TX)
-        while not self.get_irq_flags()['tx_done']:
+class LoRaReceiver:
+    def __init__(self, radio: LoRa):
+        self.radio = radio
+
+    def listen_once(self, timeout=1.0):
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if hasattr(self.radio, 'rx_done') and self.radio.rx_done():
+                try:
+                    raw = self.radio.read_payload()
+                    self.radio.clear_irq_flags()
+                    env = decode_envelope(raw)
+                    return env, None
+                except Exception:
+                    return None, None
             time.sleep(0.01)
-        self.clear_irq_flags(TxDone=1)
-        self.set_mode(MODE.SLEEP)
-        return True
-
-# --- Receiver ---------------------------------------------------------
-class LoRaReceiver(LoRa):
-    def __init__(self, **kwargs):
-        safe_board_setup()        
-        super().__init__(**kwargs)
-        self.set_mode(MODE.SLEEP)
+        return None, None
 
     def get_status(self):
         return {
-            "rssi":     self.get_rssi_value(),
-            "snr":      self.get_pkt_snr_value(),
-            "gain_dbi": 2.15
+            "rssi":     self.radio.get_rssi(),
+            "snr":      self.radio.get_snr(),
+            "gain_dbi": self.radio.get_pa_config().get("output_power", 0)
         }
-
-    def listen_once(self, timeout=10):
-        self.set_dio_mapping([0,0,0,0,0,0])
-        self.set_mode(MODE.RXCONT)
-        start = time.time()
-        while time.time() - start < timeout:
-            if self.get_irq_flags()['rx_done']:
-                self.clear_irq_flags(RxDone=1)
-                payload = bytes(self.read_payload(nocheck=True))
-                msg     = decode_message(payload)
-                q       = crc_score(payload)
-                self.set_mode(MODE.SLEEP)
-                return msg, q
-        self.set_mode(MODE.SLEEP)
-        return None, 0

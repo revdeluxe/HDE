@@ -1,47 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoRa Messaging App</title>
-    <link rel="stylesheet" href="static/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>LoRa Messaging App</title>
+  <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
-    <div id="configOverlay" hidden>
-      
-    </div>
-    <header>
-        <h1>🌐 LoRa Messaging App</h1>
+  <header>
+    <h1>LoRa Messaging App</h1>
 
-        <span id="userName" class="user-name" style="display:none;">👤 <strong id="usernameField"></strong></span>
-        <span class="status">🔗 Server:     <strong id="serverName"></strong></span>
-        <span class="status">📶 Stream Quality: <strong id="streamQuality"></strong></span>
-        <span class="status">LoRa Version: <strong id="firmware-version"></strong></span>
-    </header>
+    <span id="userName" class="user-name" style="display:none;">
+      User: <strong id="usernameField"></strong>
+    </span>
+    <span class="status">
+      Server: <strong id="serverName"></strong>
+    </span>
+    <span class="status">
+      Stream Quality: <strong id="streamQuality"></strong>
+    </span>
+    <span class="status">
+      LoRa Version: <strong id="firmware-version"></strong>
+    </span>
+  </header>
 
+  <div id="app">
+    <div id="messages" class="message-container"></div>
+    <form id="messageForm">
+      <input
+        type="text"
+        id="messageInput"
+        placeholder="Type your message..."
+        autocomplete="off"
+        required
+      />
+      <button type="submit" id="sendBtn">Send</button>
+    </form>
+  </div>
 
-    <script>
-        // Lock in cookie for username
-        const username = document.cookie.split('; ').find(row => row.startsWith('username='));
-        if (!username) {
-            const user = prompt("Enter your username:");
-            if (user) {
-                document.cookie = `username=${user}; path=/;`;
-            } else {
-                alert("Username is required to use the app.");
-                window.location.reload();
-            }
-        }
-    </script>
+  <script>
+    // Ensure username cookie is set
+    if (!document.cookie.split('; ').find(row => row.startsWith('username='))) {
+      const user = prompt('Enter your username:');
+      if (user) {
+        document.cookie = `username=${encodeURIComponent(user)}; path=/;`;
+        location.reload();
+      } else {
+        alert('Username is required');
+      }
+    }
+  </script>
 
-    <div id="app">
-        <div class="message-container" id="messages"></div>
-        <form id="messageForm">
-            <input type="text" id="messageInput" placeholder="Type your message..." required />
-            <button type="submit" id="sendButton"><i class="fa fa-paper-plane"></i> Send</button>
-        </form>
-    </div>
-
-    <script src="static/app.js" defer></script>
+  <script src="static/app.js" defer></script>
 </body>
 </html>
