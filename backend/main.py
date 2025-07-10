@@ -45,13 +45,21 @@ def get_inbox():
 
 @app.route('/api/send', methods=['POST'])
 def send_message():
-    data = request.get_json(silent=True) or request.form
-    sender = data.get('from')
-    text = data.get('message')
-    if not sender or not text:
-        return jsonify({'error': 'need from & message'}), 400
-    msg = store.add(sender, text)
+    data = request.get_json() or {}
+    sender_name = data.get('from')
+    text        = data.get('message')
+    if not sender_name or not text:
+        return jsonify({'error':'need from & message'}),400
+
+    # 1) add to local store
+    msg = store.add(sender_name, text)
+
+    # 2) broadcast over LoRa with a "type" envelope
+    payload = {"type":"message", "msg": msg}
+    sender.send_lora(payload)
+
     return jsonify(msg), 201
+
 
 @app.route('/api/user/settings')
 def user_settings():
@@ -87,25 +95,27 @@ def message_stream():
     def event_stream():
         last_index = len(store.all())
         while True:
-            # 1) new chat messages
+            # 1) pull in any LoRa packets
+            pkt, _ = receiver.listen_once(timeout=0.1)
+            if pkt and pkt.get("type") == "message":
+                msg = pkt["msg"]
+                # merge into local store
+                store.add(msg["from"], msg["message"], msg_id=msg["id"], ts=msg["ts"])
+
+            # 2) emit new chat msgs via SSE
             all_msgs = store.all()
-            for msg in all_msgs[last_index:]:
-                yield f"event: message\ndata: {json.dumps(msg)}\n\n"
+            for m in all_msgs[last_index:]:
+                yield f"event: message\ndata: {json.dumps(m)}\n\n"
             last_index = len(all_msgs)
 
-            # 2) push RF stats every second
-            stats = receiver.get_status() 
+            # 3) heartbeat + link-stats
+            stats = receiver.get_status()
             yield f"event: quality\ndata: {json.dumps(stats)}\n\n"
 
-            # 3) heartbeat (optional)
-            yield "event: heartbeat\ndata: {}\n\n"
-
             time.sleep(1)
-    return Response(
-        event_stream(),
-        mimetype='text/event-stream',
-        headers={'Cache-Control':'no-cache','X-Accel-Buffering':'no'}
-    )
+    return Response( event_stream(),
+                     mimetype='text/event-stream',
+                     headers={'Cache-Control':'no-cache','X-Accel-Buffering':'no'} )
 
 
 # ── Config Endpoints ──────────────────────────────────────────────

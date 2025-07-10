@@ -1,47 +1,28 @@
-import json
-import os
-import threading
-from datetime import datetime
+import time, uuid
 
 class MessageStore:
-    def __init__(self, path='data/messages.json'):
-        self.path = path
-        self.lock = threading.Lock()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        if not os.path.exists(path):
-            with open(path, 'w') as f:
-                json.dump([], f)
+    def __init__(self):
+        self._msgs = []    # list of dicts
 
-    def _load(self):
-        try:
-            with open(self.path, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-                if not content:
-                    return []  # empty file = empty message list
-                return json.loads(content)
-        except (json.JSONDecodeError, FileNotFoundError) as e:
-            print(f"[WARN] Failed to load messages: {e}")
-            return []
-
-
-    def _save(self, data):
-        tmp = self.path + '.tmp'
-        with open(tmp, 'w') as f:
-            json.dump(data, f, indent=2)
-        os.replace(tmp, self.path)
-
-    def add(self, sender, text):
+    def add(self, sender, text, msg_id=None, ts=None):
+        # generate stable, globally unique ID if not provided
+        if msg_id is None:
+            msg_id = f"{sender}-{uuid.uuid4()}"
+        if ts is None:
+            ts = time.time()
         msg = {
-            'from': sender,
-            'message': text,
-            'timestamp': datetime.utcnow().isoformat()
+            "id":      msg_id,
+            "from":    sender,
+            "message": text,
+            "ts":      ts
         }
-        with self.lock:
-            data = self._load()
-            data.append(msg)
-            self._save(data)
+        # only append if new
+        if not any(m["id"] == msg_id for m in self._msgs):
+            self._msgs.append(msg)
         return msg
 
     def all(self):
-        with self.lock:
-            return self._load()
+        return list(self._msgs)
+
+    def ids(self):
+        return {m["id"] for m in self._msgs}
