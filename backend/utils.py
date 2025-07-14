@@ -2,11 +2,6 @@ import struct
 import time
 import zlib
 import json
-import os
-
-def ensure_cache_dir(path):
-    d = os.path.dirname(path)
-    os.makedirs(d, exist_ok=True)
 
 def encode_message(msg):
     try:
@@ -27,6 +22,12 @@ def encode_message(msg):
     crc = struct.pack(">I", zlib.crc32(payload))
     return payload + crc
 
+def encode_chunks(payload, chunk_size=240):
+    return [payload[i:i+chunk_size] for i in range(0, len(payload), chunk_size)]
+
+def format_timestamp(ts):
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
+
 def decode_message(data):
     try:
         from_len = data[0]
@@ -46,6 +47,15 @@ def decode_message(data):
         return {"from": from_str, "message": message, "timestamp": ts}
 
     except Exception as e:
+        return {"error": str(e)}
+    
+def decode_chunks(chunks):
+    if not chunks:
+        return {}
+    try:
+        data = b"".join(chunks)
+        return json.loads(data.decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
         return {"error": str(e)}
 
 def compare_with_existing_json(new_msg, cache_path="data/message.json"):

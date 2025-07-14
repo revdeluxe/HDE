@@ -1,8 +1,8 @@
 import time
-import RPi.GPIO as GPIO
-from SX127x.LoRa       import LoRa, MODE
-from SX127x.board_config import BOARD
-from utils             import encode_message, decode_message, crc_score
+import RPi.GPIO             as GPIO
+from SX127x.LoRa            import LoRa, MODE
+from SX127x.board_config    import BOARD
+from utils                  import encode_message, decode_message, crc_score
 
 GPIO.setwarnings(False)
 

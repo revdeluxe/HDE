@@ -1,180 +1,269 @@
 :root {
-  --bg-light:   #f4f4f4;
-  --surface:    #ffffff;
-  --primary:    #00796b;
-  --primary-dark: #005f56;
-  --sent-bg:    #c8e6c9;
-  --recv-bg:    #fff9c4;
-  --error-bg:   #ffccbc;
-  --text-default: #333333;
-  --text-light: #ffffff;
-  --border:     #dddddd;
-  --radius:     8px;
+  --bg-light:      #f4f4f4;
+  --surface:       #ffffff;
+  --primary:       #00796b;
+  --primary-dark:  #005f56;
+  --accent:        #ff5722;
+  --sent-bg:       #c8e6c9;
+  --recv-bg:       #fff9c4;
+  --error-bg:      #ffccbc;
+  --text-default:  #333333;
+  --text-light:    #ffffff;
+  --border:        #dddddd;
+  --radius:        8px;
+  --transition:    0.2s ease-in-out;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-    overflow: hidden;
-    background: var(--bg-light);
-    color: var(--text-default);
-}
-
-#app {
-  background: var(--surface);
-  border-radius: var(--radius);
-}
-
-/* Buttons */
-button {
-  background-color: var(--primary);
-  color: var(--text-light);
-}
-button:hover {
-  background-color: var(--primary-dark);
-}
-
-/* Messages */
-.message.sent   { background: var(--sent-bg); }
-.message.received { background: var(--recv-bg); }
-.message.error  { background: var(--error-bg); }
-
-#app {
-  margin: 20px auto;
-  max-width: 600px;
-  display: flex;
-  flex-direction: column;
-  height: 80vh;
-}
-
-.message-container {
-  flex: 1;                /* grow to fill height */
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-form {
-  display: flex;
-  margin-top: 12px;
-}
-input {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius) 0 0 var(--radius);
-}
-button {
-  padding: 0 24px;
-  border-radius: 0 var(--radius) var(--radius) 0;
-}
-
-body {
+  margin: 0;
+  height: 100vh;
+  background: var(--bg-light);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
-.message { font-size: 1rem; line-height: 1.4; }
-
-.message {
-  opacity: 0;
-  transform: translateY(10px);
-  animation: fadeInUp 0.2s forwards;
-}
-
-@keyframes fadeInUp {
-  to { opacity: 1; transform: translateY(0); }
-}
-
-input:focus, button:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+  color: var(--text-default);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 header {
   width: 100%;
-  padding: 16px;
   background: var(--primary);
   color: var(--text-light);
+  padding: 16px;
   text-align: center;
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-bottom: 3px solid var(--primary-dark);
 }
 
-header .status {
-    display: inline-block;
-    padding: 4px 8px;
-    border-radius: var(--radius);
-    background: var(--text-light);
-    color: var(--primary-dark);
-    font-weight: bold;
+header h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  letter-spacing: 1px;
 }
 
-header p { margin: 4px 0; font-size: 0.9rem; }
-
-header {
-  border-bottom: 2px solid var(--primary-dark);
+.status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
 }
 
-.stream-quality.Excellent { color: green; }
-.stream-quality.Good      { color: orange; }
-.stream-quality.Fair      { color: darkorange; }
-.stream-quality.Poor      { color: red; }
-.stream-quality.Offline   { color: gray; font-style: italic; }
+.status-bar .status {
+  background: var(--text-light);
+  color: var(--primary-dark);
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
 
-.config-overlay {
-  position: fixed;
-  top: 50px;
-  right: 30px;
-  width: 320px;
-  max-height: 80vh;
-  overflow-y: auto;
-  background: #fff;
-  border: 1px solid #ccc;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-  padding: 10px;
-  z-index: 9999;
-  border-radius: 8px;
+main#app {
+  background: var(--surface);
+  margin: 20px;
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 600px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  height: calc(100vh - 140px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.config-header {
+.message-container {
+  flex: 1;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  overflow-y: auto;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-light);
+}
+
+.message {
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  max-width: 80%;
+  position: relative;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: fadeInUp var(--transition) forwards;
+  transition: background-color var(--transition);
+}
+
+.message.sent {
+  align-self: flex-end;
+  background: var(--sent-bg);
+}
+
+.message.received {
+  align-self: flex-start;
+  background: var(--recv-bg);
+}
+
+.message.pending {
+  align-self: flex-end;
+  background: var(--accent);
+  color: var(--text-light);
+}
+
+.message.error {
+  align-self: flex-end;
+  background: var(--error-bg);
+}
+
+/* base icon container */
+.message .status-icon {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  display: inline-flex;
   align-items: center;
-  font-weight: bold;
-  margin-bottom: 10px;
+  justify-content: center;
+  margin-left: 8px;
+  font-size: 14px;
+  transition: background var(--transition), border-color var(--transition);
 }
 
-.config-header button {
-  background: none;
-  border: none;
-  font-size: 1.2em;
-  cursor: pointer;
+/* PENDING: outline only, primary-colored check */
+.message.pending .status-icon {
+  background: transparent;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.message.pending .status-icon::before {
+  content: "✓";
+  opacity: 0; /* hide check until “sent” */
+  transition: opacity var(--transition);
 }
 
-.config-content details {
-  margin-bottom: 8px;
-  border: 1px solid #eee;
+/* SENT: show check inside outline */
+.message.sent .status-icon {
+  background: transparent;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.message.sent .status-icon::before {
+  content: "✓";
+  opacity: 1; 
+}
+
+/* SYNCED: solid primary fill, white check */
+.message.synced .status-icon {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--text-light);
+}
+.message.synced .status-icon::before {
+  content: "✓";
+  opacity: 1;
+}
+
+.message.received .status-icon {
+  display: none;
+}
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.warning {
+  background: var(--error-bg);
+  color: var(--text-default);
   padding: 8px;
-  border-radius: 5px;
-  background: #fafafa;
+  border-radius: var(--radius);
+  margin: 16px;
+  text-align: center;
 }
 
-.config-content pre {
-  background: #272822;
-  color: #f8f8f2;
-  padding: 6px;
-  font-size: 0.9em;
-  border-radius: 4px;
-  overflow-x: auto;
-  white-space: pre-wrap;
+form {
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+input#messageInput {
+  flex: 1;
+  padding: 14px;
+  border: none;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 1rem;
+  border: 1px solid var(--border);
+  border-right: none;
+  transition: box-shadow var(--transition);
+}
+
+input#messageInput:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-dark);
+}
+
+button {
+  padding: 0 24px;
+  border: none;
+  background: var(--primary);
+  color: var(--text-light);
+  font-size: 1rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+button:hover {
+  background: var(--primary-dark);
+}
+
+.stream-quality.Excellent { color: green; font-weight: 600; }
+.stream-quality.Good      { color: orange; font-weight: 600; }
+.stream-quality.Fair      { color: darkorange; font-weight: 600; }
+.stream-quality.Poor      { color: red; font-weight: 600; }
+.stream-quality.Offline   { color: gray; font-style: italic; }
+
+@media (max-width: 480px) {
+  header h1 { font-size: 1.2rem; }
+  .status-bar { gap: 4px; font-size: 0.75rem; }
+  main#app { margin: 10px; height: calc(100vh - 110px); }
+  button { padding: 0 16px; }
+}
+
+button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.notification-bubble {
+  position: absolute;
+  top: 16px;          /* adjust to sit just under header */
+  right: 24px;        /* align over your app */
+  width: 20px;
+  height: 20px;
+  background: var(--accent);
+  color: var(--text-light);
+  font-size: 0.75rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* hidden state */
+.notification-bubble.hidden {
+  opacity: 0;
+}
+
+/* visible state */
+.notification-bubble.visible {
+  opacity: 1;
 }
