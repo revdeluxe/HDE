@@ -72,11 +72,21 @@ class BOARD:
         _board_setup_done = True
 
     @staticmethod
+    def set_mode_bcm():
+        GPIO.setmode(GPIO.BCM)
+
+    @staticmethod
     def teardown():
-        """Call at shutdown to release GPIO & SPI."""
-        GPIO.cleanup()
+        try:
+            GPIO.cleanup()
+        except Exception:
+            pass
         if BOARD.spi:
-            BOARD.spi.close()
+            try:
+                BOARD.spi.close()
+            except Exception:
+                pass
+
 
     @staticmethod
     def SpiDev(spi_bus=0, spi_cs=0):
