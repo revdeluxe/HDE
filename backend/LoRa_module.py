@@ -1,44 +1,47 @@
-from SX127x.board_config import BOARD
-from SX127x.LoRa import LoRa, MODE
-from lora_interface import LoRaInterface
+# lora_interface.py
+
 import time
+from SX127x.LoRa import MODE
 
-print("🔌 Initializing SX1278x LoRa")
+class LoRaInterface:
+    def __init__(self, radio):
+        self.radio = radio
+        self.rx_mode_active = False
 
-# 1) Hardware prep
-BOARD.setup()
+    def switch_to_rx(self):
+        self.radio.set_mode(MODE.STDBY)
+        self.radio.set_mode(MODE.RXCONT)
+        self.rx_mode_active = True
 
-class CustomLoRa(LoRa):
-    def __init__(self, verbose=False):
-        super().__init__(verbose)
-        self.set_dio_mapping([0, 0, 0, 0, 0, 0])
+    def switch_to_tx(self, payload_bytes):
+        self.radio.write_payload(payload_bytes)
+        self.radio.set_mode(MODE.TX)
+        time.sleep(0.1)  # Let TX finish
+        self.switch_to_rx()
 
-radio = CustomLoRa(verbose=True)
-radio.set_mode(MODE.STDBY)
-radio.set_freq(433)
-radio.set_pa_config(pa_select=1, max_power=7, output_power=15)
-radio.set_spreading_factor(12)
+    def listen_once(self, timeout=3):
+        self.switch_to_rx()
+        start = time.time()
+        while time.time() - start < timeout:
+            flags = self.radio.get_irq_flags()
+            if flags.get('rx_done'):
+                self.radio.clear_irq_flags()
+                payload = self.radio.read_payload(nocheck=True)
+                return payload, {"rssi": self.radio.get_rssi(), "snr": self.radio.get_snr()}
+            time.sleep(0.05)
+        return None, {}
 
-lora = LoRaInterface(radio)
-print("✅ SX1278x configured")
+    def broadcast(self, payload_bytes, timeout=1):
+        self.switch_to_tx(payload_bytes)
+        time.sleep(timeout)
 
-# 2) Test TX
-try:
-    payload = b"ping"
-    lora.switch_to_tx(payload)
-    print("📡 Sent test payload:", payload)
-except Exception as e:
-    print("❌ TX test failed:", e)
+    def sync(self):
+        self.switch_to_rx()
+        # optional: send “SYNC” handshake here
 
-# 3) Test RX
-try:
-    lora.switch_to_rx()
-    msg, quality = lora.listen_once(timeout=3)
-    if msg:
-        print("📥 Received response:", msg)
-    else:
-        print("⚠️ No response received")
-except Exception as e:
-    print("❌ RX test failed:", e)
-
-print("🎯 LoRa test completed")
+    def get_status(self):
+        return {
+            "rx_mode_active": self.rx_mode_active,
+            "rssi": self.radio.get_rssi(),
+            "snr": self.radio.get_snr()
+        }
