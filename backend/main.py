@@ -8,6 +8,8 @@ import threading
 from utils import encode_message, decode_message, crc_score
 # from LoRa_test import DummyLoRaInterface
 from LoRa_module import LoRaInterface  # Replace with actual LoRa interface import
+from SX127x.LoRa import LoRa, MODE
+from SX127x.board_config import BOARD
 # —————————————————————————————————————————————
 # Use DummyLoRaInterface for testing (no SPI/GPIO)
 tx_queue = queue.Queue()
