@@ -1,75 +1,70 @@
-""" Defines the BOARD class that contains the board pin mappings and RF module HF/LF info. """
-# -*- coding: utf-8 -*-
+# SX127x/board_config.py
 
-# Copyright 2015-2022 Mayer Analytics Ltd.
-#
-# This file is part of pySX127x.
-#
-# pySX127x is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public
-# License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
-# version.
-#
-# pySX127x is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
-# warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
-# details.
-#
-# You can be released from the requirements of the license by obtaining a commercial license. Such a license is
-# mandatory as soon as you develop commercial activities involving pySX127x without disclosing the source code of your
-# own applications, or shipping pySX127x with a closed source product.
-#
-# You should have received a copy of the GNU General Public License along with pySX127.  If not, see
-# <http://www.gnu.org/licenses/>.
-import RPi.GPIO as GPIO
-import spidev
+import os
 import time
+import spidev
+import RPi.GPIO as GPIO
 
-# suppress “already in use” warnings
+# If SKIP_HW=1 or true in env, we won't touch any GPIO
+SKIP_HW = os.getenv('SKIP_HW', '').lower() in ('1', 'true')
+
+# suppress warnings about pins already in use
+GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
-# once we’ve run setup(), flip this to True so we don’t do it again
+# ensure we only do setmode()/setup() once
 _board_setup_done = False
 
 class BOARD:
-    """Raspberry Pi pin mapping + safe setup/edge-detect for SX127x"""
+    """Raspberry Pi BCM pin mapping + safe setup for SX1278x"""
 
     # BCM pin numbers
-    DIO0   = 22
-    DIO1   = 23
-    DIO2   = 24
-    DIO3   = 25
-    LED    = 18
-    SWITCH = 4
+    RESET = 17
+    DIO0  = 22
+    DIO1  = 23  # only if you wire it
 
-    # SPI handle storage
+    # holds the spidev handle
     spi = None
-
-    # low_band selects RF_LF vs RF_HF pins on your module
-    low_band = True
 
     @staticmethod
     def setup():
-        """Configure LED, SWITCH, DIO0-DIO3 once."""
         global _board_setup_done
+
+        # skip if flagged or already done
+        if SKIP_HW:
+            print(f"[BOARD] setup skipped (SKIP_HW={SKIP_HW})")
+            return
+
         if _board_setup_done:
             return
 
         GPIO.setmode(GPIO.BCM)
 
-        # User switch
-        GPIO.setup(BOARD.SWITCH, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        # in case a previous run left pins locked
+        try:
+            GPIO.cleanup()
+        except Exception:
+            pass
 
-        # DIO0–DIO3 inputs with pulldown
-        for pin in (BOARD.DIO0, BOARD.DIO1, BOARD.DIO2, BOARD.DIO3):
-            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        def safe_setup(pin, direction, **kwargs):
+            try:
+                GPIO.setup(pin, direction, **kwargs)
+            except Exception as e:
+                print(f"[WARN] GPIO.setup(pin={pin}) failed: {e}")
+
+        # RESET pin (output, start LOW)
+        safe_setup(BOARD.RESET, GPIO.OUT, initial=GPIO.LOW)
+
+        # DIO0 and DIO1 (inputs with pulldown)
+        safe_setup(BOARD.DIO0, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        safe_setup(BOARD.DIO1, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
         _board_setup_done = True
-
-    @staticmethod
-    def set_mode_bcm():
-        GPIO.setmode(GPIO.BCM)
+        print("[BOARD] hardware setup complete")
 
     @staticmethod
     def teardown():
+        """Release all GPIO & SPI on shutdown."""
         try:
             GPIO.cleanup()
         except Exception:
@@ -80,10 +75,12 @@ class BOARD:
             except Exception:
                 pass
 
-
     @staticmethod
     def SpiDev(spi_bus=0, spi_cs=0):
-        """Return a configured spidev.SpiDev instance."""
+        """
+        Return a configured spidev.SpiDev instance on (bus, cs).
+        This uses CE0 (GPIO8) or CE1 (GPIO7) under the hood.
+        """
         BOARD.spi = spidev.SpiDev()
         BOARD.spi.open(spi_bus, spi_cs)
         BOARD.spi.max_speed_hz = 5_000_000
@@ -92,57 +89,50 @@ class BOARD:
     @staticmethod
     def add_event_detect(pin, callback=None, bouncetime=None):
         """
-        Safely arm an IRQ watcher on `pin`.  
-        Removes any old watcher, then tries to add.  
-        Ignores RuntimeError if it's already been armed.
+        Safely arm an IRQ watcher on `pin`.
+        Removes any old watcher, then tries to add.
+        Ignores errors if it's already armed or unavailable.
         """
         try:
             GPIO.remove_event_detect(pin)
-        except (RuntimeError, ValueError):
+        except Exception:
             pass
 
         try:
             if bouncetime:
-                GPIO.add_event_detect(pin, GPIO.RISING,
-                                      callback=callback,
-                                      bouncetime=bouncetime)
+                GPIO.add_event_detect(
+                    pin, GPIO.RISING, callback=callback, bouncetime=bouncetime
+                )
             else:
-                GPIO.add_event_detect(pin, GPIO.RISING,
-                                      callback=callback)
-        except RuntimeError:
-            # > Failed to add edge detection ? already armed
+                GPIO.add_event_detect(pin, GPIO.RISING, callback=callback)
+        except Exception:
             pass
 
     @staticmethod
-    def add_events(cb_dio0, cb_dio1, cb_dio2, cb_dio3, cb_dio4, cb_dio5, switch_cb=None):
-        """
-        Wire up DIO0-DIO3 callbacks via our safe helper,
-        and optionally watch the SWITCH too.
-        """
-        BOARD.add_event_detect(BOARD.DIO0, callback=cb_dio0)
-        BOARD.add_event_detect(BOARD.DIO1, callback=cb_dio1)
-        BOARD.add_event_detect(BOARD.DIO2, callback=cb_dio2)
-        BOARD.add_event_detect(BOARD.DIO3, callback=cb_dio3)
+    @staticmethod
+    def add_events(cb_dio0=None, cb_dio1=None,
+                   cb_dio2=None, cb_dio3=None,
+                   cb_dio4=None, cb_dio5=None,
+                   switch_cb=None):
+        """Matches SX127x.LoRa.__init__ signature"""
 
-        # inAir9B doesn't have DIO4/DIO5 exposed, so ignore those
-        if switch_cb:
-            BOARD.add_event_detect(BOARD.SWITCH,
-                                   callback=switch_cb,
-                                   bouncetime=300)
+        # Only wire DIO0-DIO1; others are ignored unless you add them later
+        if cb_dio0:
+            BOARD.add_event_detect(BOARD.DIO0, callback=cb_dio0)
+        if cb_dio1:
+            BOARD.add_event_detect(BOARD.DIO1, callback=cb_dio1)
+
+        # DIO2 DIO5 are not wired, so skip safely
+        for cb, pin in zip(
+            [cb_dio2, cb_dio3, cb_dio4, cb_dio5],
+            [None, None, None, None]  # or GPIO24 GPIO27 if you expand later
+        ):
+            if cb and pin:
+                BOARD.add_event_detect(pin, callback=cb)
+
+        # Ignore switch_cb unless you wire SWITCH
 
     @staticmethod
-    def led_on(value=1):
-        GPIO.output(BOARD.LED, value)
-        return value
-
-    @staticmethod
-    def led_off():
-        GPIO.output(BOARD.LED, 0)
-        return 0
-
-    @staticmethod
-    def blink(time_sec, n_blink):
-        """Flash the LED `n_blink` times with `time_sec` intervals."""
-        for _ in range(n_blink):
-            time.sleep(time_sec)
-            time.sleep(time_sec)
+    def set_mode_bcm():
+        """Expose setmode if ever needed elsewhere."""
+        GPIO.setmode(GPIO.BCM)

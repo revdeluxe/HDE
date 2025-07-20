@@ -234,7 +234,7 @@ class LoRa(object):
         self.set_mode(MODE.STDBY)
         base_addr = self.get_fifo_tx_base_addr()
         self.set_fifo_addr_ptr(base_addr)
-        return self.spi.xfer([REG.LORA.FIFO | 0x80] + payload)[1:]
+        return self.spi.xfer([REG.LORA.FIFO | 0x80] + list(payload))
 
     def reset_ptr_rx(self):
         """ Get FIFO ready for RX: Set FifoAddrPtr to FifoRxBaseAddr. The transceiver is put into STDBY mode. """

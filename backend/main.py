@@ -1,30 +1,32 @@
 # main.py
-from flask import Flask, request, jsonify
-import json
-import time
-import queue
-import threading
 
-from utils import encode_message, decode_message, crc_score
-# from LoRa_test import DummyLoRaInterface
-from LoRa_module import LoRaInterface  # Replace with actual LoRa interface import
-from SX127x.LoRa import LoRa, MODE
+from flask import Flask, request, jsonify
+import queue, threading, time
+
+from utils              import encode_message, decode_message, crc_score
+from interface        import LoRaInterface
+from SX127x.LoRa        import LoRa, MODE
 from SX127x.board_config import BOARD
-# —————————————————————————————————————————————
-# Use DummyLoRaInterface for testing (no SPI/GPIO)
+
 tx_queue = queue.Queue()
 BOARD.setup()
+BOARD.SpiDev(spi_bus=0, spi_cs=0)
+
+# 2) Override the assert-y ctor
 class CustomLoRa(LoRa):
     def __init__(self, verbose=False):
         super().__init__(verbose)
-        self.set_dio_mapping([0, 0, 0, 0, 0, 0])
+        self.set_dio_mapping([0,0,0,0,0,0])
 
+
+# 3) Bring up the radio
 radio = CustomLoRa(verbose=False)
 radio.set_mode(MODE.STDBY)
 radio.set_freq(433)
 radio.set_pa_config(pa_select=1, max_power=7, output_power=15)
 radio.set_spreading_factor(12)
 
+# 4) Your interface
 lora = LoRaInterface(radio)
 
 # LoRa MTU (~240 bytes), split large payloads into chunks
@@ -53,6 +55,10 @@ threading.Thread(target=tx_worker, daemon=True).start()
 # —————————————————————————————————————————————
 app = Flask(__name__)
 
+@app.before_first_request
+def boot_beacon():
+    lora.switch_to_tx(b"BOOT_OK")
+
 @app.route('/api/send', methods=['POST'])
 def api_send():
     """
@@ -72,33 +78,66 @@ def api_send():
         tx_queue.put(chunk)
 
     return jsonify({"status": "queued", "bytes": len(payload)}), 202
+    
+@app.route('/api/registers', methods=['GET'])
+def api_registers():
+    try:
+        reg_map = {
+            "version":       radio.get_register(0x42),
+            "rssi":          radio.get_register(0x1A),
+            "snr":           radio.get_register(0x1B),
+            "irq_flags":     radio.get_register(0x12),
+            "op_mode":       radio.get_register(0x01),
+            "payload_length":radio.get_register(0x22)
+        }
+        return jsonify(reg_map), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/scan', methods=['GET'])
+def api_scan():
+    samples = []
+    for _ in range(5):
+        samples.append({
+            "rssi": radio.get_rssi(),
+            "snr":  radio.get_snr()
+        })
+        time.sleep(1)
+    return jsonify(samples), 200
+
 
 @app.route('/api/receive', methods=['GET'])
 def api_receive():
-    """
-    Listen once (timeout=5s). Decode & score payload if present.
-    """
     try:
-        payload, _ = lora.listen_once(timeout=5)
+        payload, meta = lora.listen_once(timeout=5)
         if not payload:
             return jsonify({"error": "No message received"}), 404
 
         decoded = decode_message(payload)
         score   = crc_score(payload)
-        return jsonify({"message": decoded, "quality": score}), 200
+        return jsonify({
+            "message": decoded,
+            "quality": score,
+            "meta": meta
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+
 @app.route('/api/status', methods=['GET'])
 def api_status():
-    """Quick status: RX mode flag + TX queue depth."""
-    status = lora.get_status()
-    return jsonify({
-        "rx_mode":        status["rx_mode_active"],
-        "tx_queue_depth": tx_queue.qsize(),
-        "busy":           status["busy"]
-    }), 200
+    try:
+        status = lora.get_status()
+        return jsonify({
+            "rx_mode":        status.get("rx_mode_active"),
+            "tx_queue_depth": tx_queue.qsize(),
+            "busy":           status.get("busy", False)
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/broadcast', methods=['POST'])
 def api_broadcast():
