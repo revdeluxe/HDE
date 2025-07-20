@@ -1,35 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>LoRa Messaging App</title>
-  <link rel="stylesheet" href="static/style.css" />
-</head>
-<body>
-    <header>
-        <div style="padding: 2px; margin: 5px; background-color: var(--surface); color: #000; border-radius: 15px;">
-            <h1>HDE LoRa app</h1>
-            <p style="font-size: xx-small;">Send and receive messages over LoRa locales.</p>
-        </div>
-        <div class="status-bar" style="display: flex; justify-content: center; gap: 20px;"></div>
-            <span title="Your current username">👤 <strong id="usernameField">Anonymous</strong></span>
-            <span title="Current connection status with the server">🔗 Server Status: <strong id="healthStatus">?</strong></span>
-            <span title="Reception mode status">📡 RX Mode: <strong id="rxMode">?</strong></span>
-            <span title="Number of messages in the queue">📥 Queue Depth: <strong id="queueDepth">?</strong></span>
-        </div>
-    </header>
-  <main id="app">
-    <div id="messages" class="message-container"></div>
-    <div id="notificationBubble" class="notification-bubble hidden"></div>
-    <form id="messageForm">
-      <input type="text" id="messageInput" placeholder="Type your message…" required />
-      <button type="submit">Send</button>
-    </form>
-  </main>
-    <div class="warning">
-        <span title=" Warning: Inconsistencies may occur due to device limitations, bandwidth allowance, or environmental factors.">⚠️</span>
-    </div>
-  <script src="static/app.js" defer></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>LoRa Messaging App</title>
+    <link rel="stylesheet" href="static/style.css" />
+  </head>
+  <body>
+      <header>
+          <div style="padding: 2px; margin: 5px; background-color: var(--surface); color: #000; border-radius: 15px;">
+              <h1>HDE LoRa app</h1>
+              <p style="font-size: xx-small;">Send and receive messages over LoRa locales.</p>
+          </div>
+          <div class="status-bar" style="display: flex; justify-content: center; gap: 20px;"></div>
+              <span title="Your current username">👤 <strong id="usernameField">Anonymous</strong></span>
+              <span title="Current connection status with the server">🔗 Server Status: <strong id="healthStatus">?</strong></span>
+              <span title="Reception mode status">📡 RX Mode: <strong id="rxMode">?</strong></span>
+              <span title="Number of messages in the queue">📥 Queue Depth: <strong id="queueDepth">?</strong></span>
+          </div>
+      </header>
+    <main id="app">
+      <div id="messages" class="message-container"></div>
+      <div id="notificationBubble" class="notification-bubble hidden"></div>
+      <form id="messageForm">
+        <input type="text" id="messageInput" placeholder="Type your message…" required />
+        <button type="submit">Send</button>
+      </form>
+    </main>
+    <button onclick="window.location.href='/service-offline.html'">Go to Offline Service</button>
+      <div class="warning">
+          <span title=" Warning: Inconsistencies may occur due to device limitations, bandwidth allowance, or environmental factors.">⚠️</span>
+      </div>
+    <script src="static/app.js" defer></script>
+  </body>
 </html>

@@ -6,12 +6,24 @@ import queue
 import threading
 
 from utils import encode_message, decode_message, crc_score
-from LoRa_test import DummyLoRaInterface
-
+# from LoRa_test import DummyLoRaInterface
+from LoRa_module import LoRaInterface  # Replace with actual LoRa interface import
 # —————————————————————————————————————————————
 # Use DummyLoRaInterface for testing (no SPI/GPIO)
-lora     = DummyLoRaInterface()
 tx_queue = queue.Queue()
+BOARD.setup()
+class CustomLoRa(LoRa):
+    def __init__(self, verbose=False):
+        super().__init__(verbose)
+        self.set_dio_mapping([0, 0, 0, 0, 0, 0])
+
+radio = CustomLoRa(verbose=False)
+radio.set_mode(MODE.STDBY)
+radio.set_freq(433)
+radio.set_pa_config(pa_select=1, max_power=7, output_power=15)
+radio.set_spreading_factor(12)
+
+lora = LoRaInterface(radio)
 
 # LoRa MTU (~240 bytes), split large payloads into chunks
 CHUNK_SIZE = 240

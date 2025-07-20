@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoRa Messaging App: Startup Routine</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>LoRa Messaging App: Startup Routine</h1>
+    </header>
+    <main>
+        <section>
+            <h2>👤 Audience: Staff deploying LoRa hardware for field use</h2>
+            <article>
+                <h3>STEP 1: Launch the web backend</h3>
+                <p>Open terminal and run:</p>
+                <pre><code>python main.py</code></pre>
+                <p>You'll see "Listening on port 5000"</p>
+            </article>
+            <article>
+                <h3>STEP 2: Verify LoRa Interface</h3>
+                <p>The backend will auto-sync and attempt to discover nearby LoRa endpoints.</p>
+                <p>Look for messages like:</p>
+                <pre><code>[✅] Endpoint found: Device123</code></pre>
+                <p>If you see <code>[❌]</code>, double-check LoRa module is connected and powered.</p>
+            </article>
+            <article>
+                <h3>STEP 3: Use the Web Interface</h3>
+                <p>Open your browser and go to:</p>
+                <pre><code>http://localhost:5000</code></pre>
+                <ul>
+                    <li>Enter your name when prompted</li>
+                    <li>Type a message and click Send</li>
+                    <li>If everything works, the status circle turns ✅</li>
+                </ul>
+            </article>
+            <article>
+                <h3>STEP 4: Confirm Message Sync</h3>
+                <p>Messages will be received on other units, and marked as "synced".</p>
+                <p>If no message is received:</p>
+                <ul>
+                    <li>Verify backend is running</li>
+                    <li>Check that LoRa RX mode is ON (status bar)</li>
+                </ul>
+            </article>
+        </section>
+        <nav>
+            <button onclick="window.location.href='/index.html'">Back to Index</button>
+            <button onclick="window.location.href='/service-offline.html'">Reload Page</button>
+        </nav>
+    </main>
+</body>
+</html>
