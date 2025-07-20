@@ -55,19 +55,12 @@ class BOARD:
 
         GPIO.setmode(GPIO.BCM)
 
-        # LED output
-        GPIO.setup(BOARD.LED, GPIO.OUT)
-        GPIO.output(BOARD.LED, 0)
-
         # User switch
         GPIO.setup(BOARD.SWITCH, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
         # DIO0–DIO3 inputs with pulldown
         for pin in (BOARD.DIO0, BOARD.DIO1, BOARD.DIO2, BOARD.DIO3):
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-
-        # blink twice so you know setup ran
-        BOARD.blink(0.1, 2)
 
         _board_setup_done = True
 
@@ -151,7 +144,5 @@ class BOARD:
     def blink(time_sec, n_blink):
         """Flash the LED `n_blink` times with `time_sec` intervals."""
         for _ in range(n_blink):
-            BOARD.led_on()
             time.sleep(time_sec)
-            BOARD.led_off()
             time.sleep(time_sec)
