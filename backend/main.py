@@ -1,7 +1,7 @@
 # main.py
 
 from flask import Flask, request, jsonify
-import queue, threading, time
+import queue, threading, time, socket
 
 from utils              import encode_message, decode_message, crc_score
 from interface        import LoRaInterface
@@ -94,6 +94,39 @@ def api_send():
 @app.route('/api/messages', methods=['GET'])
 def api_messages():
     return jsonify(synced_messages[-50:]), 200  # last 50 for frontend view
+    
+@app.route('/api/handshake', methods=['POST'])
+def api_handshake():
+    me = request.get_json().get("hostname", "node-A")
+    peer = lora.initiate_handshake(my_hostname=me)
+    if peer:
+        return jsonify({"status": "connected", "peer": peer}), 200
+    return jsonify({"error": "No handshake acknowledgment"}), 404
+
+def handshake_listener():
+    while True:
+        lora.switch_to_rx()
+        flags = radio.get_irq_flags()
+        if flags.get("rx_done"):
+            radio.clear_irq_flags()
+            payload = radio.read_payload(nocheck=True)
+            try:
+                msg = decode_message(payload)
+                if msg.get("type") == "HANDSHAKE_REQ":
+                    sender = msg.get("from", "unknown")
+                    print(f"[Handshake] Request received from {sender}")
+
+                    reply = encode_message({
+                        "type": "HANDSHAKE_ACK",
+                        "from": socket.gethostname(),
+                        "ack_for": sender,
+                        "timestamp": int(time.time())
+                    })
+                    lora.switch_to_tx(reply)
+                    time.sleep(0.5)
+            except Exception as e:
+                print(f"[Handshake] Decode error: {e}")
+        time.sleep(0.1)
     
 @app.route('/api/relay', methods=['POST'])
 def api_relay():
@@ -224,4 +257,5 @@ def api_health():
 
 if __name__ == '__main__':
     print("Starting Dummy-LoRa backend API on port 5000…")
+    threading.Thread(target=handshake_listener, daemon=True).start()
     app.run(host='0.0.0.0', port=5000, debug=True)

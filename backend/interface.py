@@ -67,6 +67,58 @@ class LoRaInterface:
         self.switch_to_tx(encode_message(message_dict))
         time.sleep(timeout)
         self.switch_to_rx()
+        
+    def initiate_handshake(self, my_hostname="node-A", timeout=5):
+        payload = encode_message({
+            "type": "HANDSHAKE_REQ",
+            "from": my_hostname,
+            "timestamp": int(time.time())
+        })
+        self.switch_to_tx(payload)
+        time.sleep(0.5)
+        self.switch_to_rx()
+
+        start = time.time()
+        while time.time() - start < timeout:
+            flags = self.radio.get_irq_flags()
+            if flags.get("rx_done"):
+                self.radio.clear_irq_flags()
+                reply = self.radio.read_payload(nocheck=True)
+                try:
+                    msg = decode_message(reply)
+                    if msg.get("type") == "HANDSHAKE_ACK":
+                        print(f"?? Handshake confirmed with {msg['from']}")
+                        return msg["from"]
+                except:
+                    pass
+            time.sleep(0.1)
+        return None  # no handshake received
+
+    def handshake_listener():
+        while True:
+            lora.switch_to_rx()
+            flags = radio.get_irq_flags()
+            if flags.get("rx_done"):
+                radio.clear_irq_flags()
+                payload = radio.read_payload(nocheck=True)
+                try:
+                    msg = decode_message(payload)
+                    if msg.get("type") == "HANDSHAKE_REQ":
+                        sender = msg.get("from", "unknown")
+                        print(f"[Handshake] Request received from {sender}")
+
+                        reply = encode_message({
+                            "type": "HANDSHAKE_ACK",
+                            "from": hostname,
+                            "ack_for": sender,
+                            "timestamp": int(time.time())
+                        })
+                        lora.switch_to_tx(reply)
+                        time.sleep(0.5)
+                        continue  # stay listening
+                except Exception as e:
+                    print(f"[Handshake] Failed to decode packet: {e}")
+            time.sleep(0.1)
 
         
     def discover_endpoint(self, timeout=5):
@@ -104,5 +156,5 @@ class LoRaInterface:
             "rssi": self.get_rssi(), # fails
             "snr": self.get_snr() # fails
         }
-    
+
     
