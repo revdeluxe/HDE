@@ -7,6 +7,11 @@ from utils              import encode_message, decode_message, crc_score
 from interface        import LoRaInterface
 from SX127x.LoRa        import LoRa, MODE
 from SX127x.board_config import BOARD
+from threading import Lock
+
+sync_queue = []
+sync_lock = Lock()
+
 
 tx_queue = queue.Queue()
 BOARD.setup()
@@ -51,16 +56,6 @@ def tx_worker():
             
 synced_messages = []
 
-def store_synced_message(msg, source='remote'):
-    synced_messages.append({
-        "from": msg["from"],
-        "message": msg["message"],
-        "timestamp": msg.get("timestamp"),
-        "status": "synced",
-        "source": source
-    })
-
-
 # start daemon
 threading.Thread(target=tx_worker, daemon=True).start()
 
@@ -70,6 +65,19 @@ app = Flask(__name__)
 @app.before_first_request
 def boot_beacon():
     lora.switch_to_tx(b"BOOT_OK")
+    
+def store_synced_message(msg, source="remote"):
+    if not isinstance(msg, dict):
+        return
+    entry = {
+        "from": msg.get("from"),
+        "message": msg.get("message"),
+        "timestamp": msg.get("timestamp", int(time.time())),
+        "source": source,
+        "status": "synced"
+    }
+    synced_messages.append(entry)
+
 
 @app.route('/api/send', methods=['POST'])
 def api_send():
@@ -90,10 +98,13 @@ def api_send():
     store_synced_message(msg, source='local')
 
     return jsonify({"status": "queued", "bytes": len(payload)}), 202
+    
+@app.route('/api/messages/<source>', methods=['GET'])
+def api_messages_by_source(source):
+    filtered = [m for m in synced_messages if m["source"] == source]
+    return jsonify(filtered[-50:]), 200
 
-@app.route('/api/messages', methods=['GET'])
-def api_messages():
-    return jsonify(synced_messages[-50:]), 200  # last 50 for frontend view
+
     
 @app.route('/api/handshake', methods=['POST'])
 def api_handshake():
@@ -255,7 +266,34 @@ def api_health():
     """Liveness probe."""
     return jsonify({"status": "ok"}), 200
 
+def sync_loop():
+    while True:
+        if not sync_queue:
+            time.sleep(1)
+            continue
+
+        item = sync_queue.pop(0)
+        print(f"[SYNC] Processing message from {item['message']['from']}")
+
+        peer = lora.discover_endpoint(timeout=5)
+        if not peer:
+            print("[SYNC] No peer found. Requeuing message.")
+            sync_queue.append(item)
+            time.sleep(2)
+            continue
+
+        lora.sync_to_peer(item["message"])
+        item["status"] = "sent"
+        synced_messages.append(item)
+        time.sleep(0.5)
+
+
 if __name__ == '__main__':
-    print("Starting Dummy-LoRa backend API on port 5000…")
-    threading.Thread(target=handshake_listener, daemon=True).start()
+    print("Starting Dummy-LoRa backend API on port 5000!")
+
+    # Kick off the sync loop in the background
+    threading.Thread(target=sync_loop, daemon=True).start()
+
+    # Start Flask server
     app.run(host='0.0.0.0', port=5000, debug=True)
+
