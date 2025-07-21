@@ -153,20 +153,21 @@ async function refreshStatus() {
   try {
     const res = await fetch('/api/status');
     updateHttpStatus(res);
-    const { rx_mode, tx_queue_depth } = await res.json();
+    const { rx_mode, tx_queue_depth, server_state, busy } = await res.json();
+
     document.getElementById('rxMode').textContent = rx_mode ? 'ON' : 'OFF';
     document.getElementById('queueDepth').textContent = tx_queue_depth;
     document.getElementById('healthStatus').textContent = res.ok ? 'OK' : 'Error';
+    document.getElementById('serverState').textContent = server_state;
+
     sendBtn.disabled = busy;
-    if (busy) {
-      sendBtn.textContent = 'Sending…';
-    } else {
-      sendBtn.textContent = 'Send';
-    }
+    sendBtn.textContent = busy ? 'Sending:' : 'Send';
   } catch {
     document.getElementById('healthStatus').textContent = 'Offline';
+    document.getElementById('serverState').textContent = 'offline';
   }
 }
+
 
 async function pollReceive() {
   try {

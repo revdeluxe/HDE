@@ -61,23 +61,21 @@ def boot_beacon():
 
 @app.route('/api/send', methods=['POST'])
 def api_send():
-    """
-    POST {"from":"alice","message":"hello"}
-    Encodes, chunks, queues for TX. Returns total byte count queued.
-    """
+    global last_sent_msg
     data = request.get_json() or {}
     if 'from' not in data or 'message' not in data:
         return jsonify({"error": "Missing 'from' or 'message'"}), 400
 
-    # 1) Build & encode
-    msg     = {'from': data['from'], 'message': data['message']}
+    msg     = {'from': data['from'], 'message': data['message'], 'timestamp': data.get('timestamp')}
     payload = encode_message(msg)
 
-    # 2) Chunk & queue
     for chunk in chunk_payload(payload):
         tx_queue.put(chunk)
 
+    last_sent_msg = msg  # <- stash for fallback
+
     return jsonify({"status": "queued", "bytes": len(payload)}), 202
+
     
 @app.route('/api/registers', methods=['GET'])
 def api_registers():
@@ -105,11 +103,18 @@ def api_scan():
         time.sleep(1)
     return jsonify(samples), 200
 
-
 @app.route('/api/receive', methods=['GET'])
 def api_receive():
+    global last_sent_msg
     try:
         payload, meta = lora.listen_once(timeout=5)
+        if not payload and last_sent_msg:
+            return jsonify({
+                "message": last_sent_msg,
+                "quality": 100,
+                "meta": {"source": "local-fallback"}
+            }), 200
+
         if not payload:
             return jsonify({"error": "No message received"}), 404
 
@@ -124,19 +129,34 @@ def api_receive():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-
 @app.route('/api/status', methods=['GET'])
 def api_status():
-    try:
-        status = lora.get_status()
-        return jsonify({
-            "rx_mode":        status.get("rx_mode_active"),
-            "tx_queue_depth": tx_queue.qsize(),
-            "busy":           status.get("busy", False)
-        }), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    status = lora.get_status()
+    flags  = radio.get_irq_flags()
+    hostname = "lora-node-001"  # or dynamically get from config/env
+
+    if tx_queue.qsize() > 0 or flags.get("tx_done") == 0:
+        server_state = "busy"
+    elif flags.get("valid_header") or flags.get("rx_done"):
+        last = radio.read_payload(nocheck=True)
+        try:
+            msg = decode_message(last)
+            server_state = msg.get("from", hostname)
+        except:
+            server_state = hostname
+    else:
+        server_state = "offline"
+
+    return jsonify({
+        "rx_mode": status.get("rx_mode_active"),
+        "tx_queue_depth": tx_queue.qsize(),
+        "rssi": status.get("rssi"),
+        "snr": status.get("snr"),
+        "busy": False,
+        "server_state": server_state
+    }), 200
+
+
 
 
 @app.route('/api/broadcast', methods=['POST'])
