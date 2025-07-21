@@ -12,7 +12,6 @@ from threading import Lock
 sync_queue = []
 sync_lock = Lock()
 
-
 tx_queue = queue.Queue()
 BOARD.setup()
 BOARD.SpiDev(spi_bus=0, spi_cs=0)
@@ -20,18 +19,21 @@ BOARD.SpiDev(spi_bus=0, spi_cs=0)
 # 2) Override the assert-y ctor
 class CustomLoRa(LoRa):
     def __init__(self, verbose=False):
-        super().__init__(verbose)
-        self.set_dio_mapping([0,0,0,0,0,0])
+        # Step 1: Delay base init until mode is safe
+        LoRa.__init__(self, verbose=False, do_calibration=False)
+
+        # Step 2: Now set safe mode
+        self.set_mode(MODE.STDBY)
+
+        # Step 4: Finalize IRQ
+        self.set_dio_mapping([0, 0, 0, 0, 0, 0])
 
 
-# 3) Bring up the radio
 radio = CustomLoRa(verbose=False)
-radio.set_mode(MODE.STDBY)
 radio.set_freq(433)
 radio.set_pa_config(pa_select=1, max_power=7, output_power=15)
 radio.set_spreading_factor(12)
 
-# 4) Your interface
 lora = LoRaInterface(radio)
 
 # LoRa MTU (~240 bytes), split large payloads into chunks

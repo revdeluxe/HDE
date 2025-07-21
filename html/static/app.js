@@ -153,20 +153,38 @@ async function refreshStatus() {
   try {
     const res = await fetch('/api/status');
     updateHttpStatus(res);
-    const { rx_mode, tx_queue_depth, server_state, busy } = await res.json();
+    const {
+      rx_mode,
+      tx_queue_depth,
+      server_state,
+      busy,
+      sync_status // optional if you want to expose sync info from backend
+    } = await res.json();
 
+    // Update RX/TX indicators
     document.getElementById('rxMode').textContent = rx_mode ? 'ON' : 'OFF';
     document.getElementById('queueDepth').textContent = tx_queue_depth;
     document.getElementById('healthStatus').textContent = res.ok ? 'OK' : 'Error';
     document.getElementById('serverState').textContent = server_state;
 
-    sendBtn.disabled = busy;
-    sendBtn.textContent = busy ? 'Sending:' : 'Send';
+    // Update Send button
+    const isSyncing = tx_queue_depth > 0 || busy;
+    sendBtn.disabled = isSyncing;
+    sendBtn.textContent = isSyncing ? `Syncing...` : 'Send';
+
+    // Optionally display sync status
+    const syncEl = document.getElementById('syncStatus');
+    if (syncEl && sync_status) {
+      syncEl.textContent = sync_status;
+    }
+
   } catch {
-    document.getElementById('healthStatus').textContent = 'Offline';
     document.getElementById('serverState').textContent = 'offline';
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Send';
   }
 }
+
 
 
 async function pollReceive() {
