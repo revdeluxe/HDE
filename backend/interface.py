@@ -62,6 +62,31 @@ class LoRaInterface:
                 }
             time.sleep(0.05)
         return None, {}
+        
+    def sync_to_peer(self, message_dict, timeout=3):
+        self.switch_to_tx(encode_message(message_dict))
+        time.sleep(timeout)
+        self.switch_to_rx()
+
+        
+    def discover_endpoint(self, timeout=5):
+        self.switch_to_rx()
+        start = time.time()
+        while time.time() - start < timeout:
+            flags = self.radio.get_irq_flags()
+            if flags.get("rx_done"):
+                self.radio.clear_irq_flags()
+                payload = self.radio.read_payload(nocheck=True)
+                try:
+                    msg = decode_message(payload)
+                    if msg.get("from"):
+                        print(f"[Discovery] Found endpoint: {msg['from']}")
+                        return msg["from"]
+                except:
+                    pass
+            time.sleep(0.05)
+        return None  # no endpoint found
+
 
     def get_rssi(self):
         # RegPktRssiValue = 0x1A

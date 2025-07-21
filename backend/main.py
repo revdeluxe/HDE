@@ -48,6 +48,18 @@ def tx_worker():
             print("[TX Worker] Error sending:", e)
         finally:
             time.sleep(0.1)
+            
+synced_messages = []
+
+def store_synced_message(msg, source='remote'):
+    synced_messages.append({
+        "from": msg["from"],
+        "message": msg["message"],
+        "timestamp": msg.get("timestamp"),
+        "status": "synced",
+        "source": source
+    })
+
 
 # start daemon
 threading.Thread(target=tx_worker, daemon=True).start()
@@ -72,11 +84,30 @@ def api_send():
     for chunk in chunk_payload(payload):
         tx_queue.put(chunk)
 
-    last_sent_msg = msg  # <- stash for fallback
+    last_sent_msg = msg  # store locally
+
+    # ?? Immediately log it as received (local sync)
+    store_synced_message(msg, source='local')
 
     return jsonify({"status": "queued", "bytes": len(payload)}), 202
 
+@app.route('/api/messages', methods=['GET'])
+def api_messages():
+    return jsonify(synced_messages[-50:]), 200  # last 50 for frontend view
     
+@app.route('/api/relay', methods=['POST'])
+def api_relay():
+    if not last_sent_msg:
+        return jsonify({"error": "No message to relay"}), 404
+
+    peer = lora.discover_endpoint(timeout=5)
+    if not peer:
+        return jsonify({"error": "No peer detected"}), 404
+
+    lora.sync_to_peer(last_sent_msg)
+    return jsonify({"status": "relayed", "to": peer}), 200
+
+
 @app.route('/api/registers', methods=['GET'])
 def api_registers():
     try:
