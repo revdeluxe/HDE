@@ -1,9 +1,7 @@
 # main.py
 
 from flask import Flask, request, jsonify
-import queue, threading, time, socket
-
-from utils              import encode_message, decode_message, crc_score
+import queue, threading, time, socket, utils
 from interface        import LoRaInterface
 from SX127x.LoRa        import LoRa, MODE
 from SX127x.board_config import BOARD
