@@ -1,5 +1,5 @@
 # main.py
-
+import os
 import json
 import time
 import socket
@@ -8,11 +8,13 @@ import threading
 import logging
 
 from threading import Lock
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, abort
+from werkzeug.utils import secure_filename
 from message_store import MessageStore
 from interface import LoRaInterface, chunk_payload
 from utils import encode_message, decode_message, crc_score
 from threading import Lock
+
 sync_lock = Lock()
 
 # How long to wait for a peer ACK (seconds)
@@ -34,6 +36,42 @@ store = MessageStore()
 lora = LoRaInterface()
 
 # —— Background Workers —— #
+MESSAGE_DIR = './'
+
+@app.route('/api/messages/<source>', methods=['GET'])
+def api_messages_from_file(source):
+    """
+    Treat <source> as the filename (without path traversal).
+    E.g. GET /api/messages/message.json will load message.json
+    from MESSAGE_DIR.
+    """
+    # Prevent path traversal attacks
+    filename = secure_filename(source)
+    # Ensure the extension is .json
+    if not filename.lower().endswith('.json'):
+        filename += '.json'
+
+    full_path = os.path.join(MESSAGE_DIR, filename)
+
+    # Check that the file actually exists under MESSAGE_DIR
+    if not os.path.isfile(full_path):
+        abort(404, description=f"File {filename} not found")
+
+    # Load and return its contents
+    with open(full_path, 'r', encoding='utf-8') as f:
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            abort(500, description=f"Invalid JSON in {filename}")
+
+    return jsonify(data), 200
+
+@app.route('/api/messages/', methods=['GET'])
+def api_list_sources():
+    files = [f for f in os.listdir(MESSAGE_DIR)
+             if f.lower().endswith('.json')]
+    return jsonify(files), 200
+
 
 def tx_worker():
     """Continuously sends chunks from tx_queue over LoRa."""
