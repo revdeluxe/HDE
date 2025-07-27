@@ -5,9 +5,10 @@ import time
 import socket
 import queue
 import threading
+import logging
 
 from threading import Lock
-from flask import Flask, request, jsonify, logging
+from flask import Flask, request, jsonify
 from message_store import MessageStore
 from interface import LoRaInterface, chunk_payload
 from utils import encode_message, decode_message, crc_score
