@@ -127,7 +127,7 @@ def api_messages_by_source(source):
 def api_receive():
     """Attempt one receive, fallback to last_sent_msg if none."""
     try:
-        idx, raw, meta = lora.listen_once(timeout=5)
+        idx, raw, meta = lora.listen_once()
         if not raw and last_sent_msg:
             return jsonify({
                 "message": last_sent_msg,
