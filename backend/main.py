@@ -89,6 +89,7 @@ def boot_beacon():
     """Send a BOOT_OK on startup."""
     beacon = encode_message({
         "type":      "BOOT_OK",
+        "message": "LoRa service started",
         "from":      socket.gethostname(),
         "timestamp": int(time.time())
     })
