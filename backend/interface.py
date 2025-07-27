@@ -47,9 +47,8 @@ class LoRaInterface(LoRa):
         self.set_mode(MODE.SLEEP)
         time.sleep(0.05)
         if do_calibration:
-            super().rx_chain_calibration(self.calibration_freq)
-        self.set_mode(MODE.STDBY)
-        self.set_dio_mapping([0] * 6)
+            # pass the float you just got, not the base-class method
+            super().rx_chain_calibration(frequency)
 
         # RF parameters
         self.set_freq(frequency)
