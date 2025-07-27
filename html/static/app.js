@@ -1,30 +1,38 @@
 // static/app.js
 
+// ——————————————————————————————————
+// Constants & State
+
+const POLL_INTERVAL_MS = 3000;
+const CHUNK_POLL_INTERVAL = POLL_INTERVAL_MS;
 const seenMessages = new Set();
+let unreadCount = 0;
 let sendBtn;
 let user = null;
 
 // ——————————————————————————————————
-// Helper Functions
+// Utility Functions
 
 function getCookie(name) {
-  const m = document.cookie.match(
+  const match = document.cookie.match(
     new RegExp('(?:^|; )' + name + '=([^;]*)')
   );
-  return m ? decodeURIComponent(m[1]) : null;
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 function scrollToBottom() {
-  const c = document.getElementById('messages');
-  c.scrollTop = c.scrollHeight;
+  const container = document.getElementById('messages');
+  container.scrollTop = container.scrollHeight;
 }
 
 function updateHttpStatus(res) {
   const el = document.getElementById('httpStatus');
   if (!el) return;
+
   el.className = 'status status-code';
   const code = res.status;
-  const text = res.statusText || '';
+  el.textContent = `${code} ${res.statusText || ''}`;
+
   if (code >= 200 && code < 300) {
     el.classList.add('success');
   } else if (code >= 300 && code < 400) {
@@ -34,36 +42,36 @@ function updateHttpStatus(res) {
   } else if (code >= 500) {
     el.classList.add('server-error');
   }
-  el.textContent = `${code} ${text}`;
 }
 
 function appendMessage({ from, message, status = 'received', key }) {
   if (key && seenMessages.has(key)) return;
   if (key) seenMessages.add(key);
 
-  const div = document.createElement('div');
-  div.className = `message ${status}`;
-  div.innerHTML = `
+  const wrapper = document.createElement('div');
+  wrapper.className = `message ${status}`;
+  wrapper.innerHTML = `
     <strong>${from}:</strong> ${message}
     <span class="status-icon"></span>
   `;
-  document.getElementById('messages').append(div);
+
+  document.getElementById('messages').appendChild(wrapper);
   scrollToBottom();
-  return div;
+  return wrapper;
 }
 
-// Notification bubble
-let unreadCount = 0;
 function showNotification() {
-  const b = document.getElementById('notificationBubble');
-  if (!b) return;
-  unreadCount++;
-  b.textContent = unreadCount > 1 ? unreadCount : '';
-  b.classList.remove('hidden');
-  b.classList.add('visible');
+  const bubble = document.getElementById('notificationBubble');
+  if (!bubble) return;
+
+  unreadCount += 1;
+  bubble.textContent = unreadCount > 1 ? unreadCount : '';
+  bubble.classList.remove('hidden');
+  bubble.classList.add('visible');
+
   setTimeout(() => {
-    b.classList.remove('visible');
-    b.classList.add('hidden');
+    bubble.classList.remove('visible');
+    bubble.classList.add('hidden');
   }, 3000);
 }
 
@@ -71,12 +79,12 @@ function showNotification() {
 // Core Logic
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Grab input and form
+  // Elements
   const input = document.getElementById('messageInput');
-  const form = document.getElementById('messageForm');
-  sendBtn = form.querySelector('button');
+  const form  = document.getElementById('messageForm');
+  sendBtn      = form.querySelector('button');
 
-  // Initialize user
+  // Identify user
   user = getCookie('username');
   if (!user) {
     user = prompt('Enter your username:') || 'Anonymous';
@@ -84,35 +92,37 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   document.getElementById('usernameField').textContent = user;
 
-  // Submit handler
+  // Send form handler
   form.addEventListener('submit', async e => {
     e.preventDefault();
     const text = input.value.trim();
     if (!text) return;
     input.value = '';
 
-    // Unique key for this message
-    const ts = Date.now();
-    const myKey = `${user}|${text}|${ts}`;
+    const timestamp = Date.now();
+    const key       = `${user}|${text}|${timestamp}`;
 
+    // Show pending message
     const msgEl = appendMessage({
       from: user,
       message: text,
       status: 'pending',
-      key: myKey
+      key
     });
 
     try {
+      // 1) Queue on server
       const res = await fetch('/api/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: user, message: text, timestamp: ts })
+        body: JSON.stringify({ from: user, message: text, timestamp })
       });
       updateHttpStatus(res);
       if (!res.ok) throw new Error(res.status);
 
       msgEl.classList.replace('pending', 'sent');
 
+      // 2) Trigger sync loop
       const syncRes = await fetch('/api/sync', { method: 'POST' });
       updateHttpStatus(syncRes);
       if (syncRes.ok) {
@@ -123,67 +133,61 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Clear notifications when focusing input
+  // Clear unread count on focus
   input.addEventListener('focus', () => {
     unreadCount = 0;
-    const b = document.getElementById('notificationBubble');
-    if (b) {
-      b.classList.remove('visible');
-      b.classList.add('hidden');
+    const bubble = document.getElementById('notificationBubble');
+    if (bubble) {
+      bubble.classList.remove('visible');
+      bubble.classList.add('hidden');
     }
   });
 
-  // Initial load & polling
+  // Initial load
   refreshStatus();
   pollReceive();
 
+  // Poll periodically
   setInterval(() => {
     refreshStatus();
     pollReceive();
-  }, 3000);
+  }, POLL_INTERVAL_MS);
 });
 
-async function beacon(){
-  const res = await fetch('/api/status');
-  const beacon = await fetch('/api/beacon');
-  const discover_beacon = await fetch('/api/discover_endpoint');
-}
-
 // ——————————————————————————————————
-// Polling Functions
+// Polling & Status
 
 async function refreshStatus() {
   try {
     const res = await fetch('/api/status');
-
     updateHttpStatus(res);
+
+    if (!res.ok) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Send';
+      return;
+    }
+
     const {
       rx_mode,
       tx_queue_depth,
-      server_state,
+      rssi,
+      snr,
       busy,
-      sync_status 
+      server_state
     } = await res.json();
 
-    // Update RX/TX indicators
-    document.getElementById('rxMode').textContent = rx_mode ? 'ON' : 'OFF';
-    document.getElementById('queueDepth').textContent = tx_queue_depth;
-    document.getElementById('healthStatus').textContent = res.ok ? 'OK' : 'Error';
+    document.getElementById('rxMode').textContent      = rx_mode ? 'ON' : 'OFF';
+    document.getElementById('queueDepth').textContent  = tx_queue_depth;
+    document.getElementById('rssi').textContent        = rssi ?? '—';
+    document.getElementById('snr').textContent         = snr  ?? '—';
     document.getElementById('serverState').textContent = server_state;
 
-    // Update Send button
     const isSyncing = tx_queue_depth > 0 || busy;
     sendBtn.disabled = isSyncing;
-    sendBtn.textContent = isSyncing ? `Syncing...` : 'Send';
-
-    // Optionally display sync status
-    const syncEl = document.getElementById('syncStatus');
-    if (syncEl && sync_status) {
-      syncEl.textContent = sync_status;
-    }
-
-  } catch {
-    document.getElementById('serverState').textContent = server_state;
+    sendBtn.textContent = isSyncing ? 'Syncing…' : 'Send';
+  } catch (err) {
+    console.error('Status refresh failed', err);
     sendBtn.disabled = true;
     sendBtn.textContent = 'Send';
   }
@@ -193,12 +197,11 @@ async function pollReceive() {
   try {
     const res = await fetch('/api/receive');
     if (!res.ok) return;
-    const { message, quality } = await res.json();
 
+    const { message, quality, meta } = await res.json();
     const key = `${message.from}|${message.message}|${message.timestamp || ''}`;
     const isMine = message.from === user;
 
-    // Only append once, with correct status
     appendMessage({
       from: message.from,
       message: message.message,
@@ -207,8 +210,7 @@ async function pollReceive() {
     });
 
     if (!isMine) showNotification();
-
-  } catch (e) {
-    console.warn('Receive failed', e);
+  } catch (err) {
+    console.warn('Receive poll failed', err);
   }
 }

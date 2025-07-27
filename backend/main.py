@@ -1,78 +1,98 @@
 # main.py
-from flask import Flask, request, jsonify
-import queue, threading, time, socket, utils
-from interface        import LoRaInterface
-from SX127x.LoRa        import LoRa, MODE
-from SX127x.board_config import BOARD
-from utils import encode_message, decode_message, crc_score
+
+import json
+import time
+import socket
+import queue
+import threading
+
 from threading import Lock
+from flask import Flask, request, jsonify
 
-sync_queue = []
-sync_lock = Lock()
+from interface import LoRaInterface, chunk_payload
+from utils import encode_message, decode_message, crc_score
 
-tx_queue = queue.Queue()
-BOARD.setup()
-BOARD.SpiDev(spi_bus=0, spi_cs=0)
+app = Flask(__name__)
 
-class CustomLoRa(LoRa):
-    def __init__(self, verbose=False):
-        LoRa.set_mode(MODE.STDBY)
-        LoRa.__init__(self, verbose=False, do_calibration=True)
-        self.set_mode(MODE.STDBY)
-        self.set_dio_mapping([0, 0, 0, 0, 0, 0])
+# —— Queues, Locks, Storage —— #
+tx_queue      = queue.Queue()
+sync_queue    = []
+sync_lock     = Lock()
+synced_messages = []
+last_sent_msg = None
 
+# —— Radio Setup —— #
+# BOARD.setup() and BOARD.SpiDev() live inside interface.radio_init()
+# LoRaInterface() will call radio_init() automatically
+lora = LoRaInterface()
 
-radio = CustomLoRa(verbose=False)
-radio.set_freq(433)
-radio.set_pa_config(pa_select=1, max_power=7, output_power=15)
-radio.set_spreading_factor(12)
-
-lora = LoRaInterface(radio)
-
-# LoRa MTU (~240 bytes), split large payloads into chunks
-CHUNK_SIZE = 240
-
-def chunk_payload(payload: bytes, size: int = CHUNK_SIZE):
-    """Split a bytes payload into fixed-size chunks."""
-    return [payload[i : i + size] for i in range(0, len(payload), size)]
+# —— Background Workers —— #
 
 def tx_worker():
-    """Background thread: pull from tx_queue ➔ send via dummy LoRa."""
+    """Pull chunks off tx_queue and send them."""
     while True:
         chunk = tx_queue.get()
         try:
-            if tx_queue.qsize() % 10 == 0:
-                print(f"[TX Worker] queue depth: {tx_queue.qsize()}")
             lora.switch_to_tx(chunk)
         except Exception as e:
             print("[TX Worker] Error sending:", e)
         finally:
             time.sleep(0.1)
-            
-synced_messages = []
 
-# start daemon
-threading.Thread(target=tx_worker, daemon=True).start()
+def sync_loop():
+    """Process sync_queue: discover peer, then sync_to_peer."""
+    while True:
+        sync_lock.acquire()
+        if sync_queue:
+            item = sync_queue.pop(0)
+            peer = lora.discover_endpoint(timeout=5)
+            if peer:
+                lora.sync_to_peer(item["message"])
+                item["status"] = "sent"
+                synced_messages.append(item)
+            else:
+                # no peer found—requeue and try later
+                sync_queue.append(item)
+        sync_lock.release()
+        time.sleep(1)
 
-# —————————————————————————————————————————————
-app = Flask(__name__)
+def handshake_listener():
+    """Always-on listener for incoming HANDSHAKE_REQ."""
+    while True:
+        idx, raw, _ = lora.listen_once()
+        if raw:
+            try:
+                msg = decode_message(raw)
+                if msg.get("type") == "HANDSHAKE_REQ":
+                    sender = msg.get("from", "unknown")
+                    print(f"[Handshake] Req from {sender}")
+                    reply = encode_message({
+                        "type": "HANDSHAKE_ACK",
+                        "from": socket.gethostname(),
+                        "ack_for": sender,
+                        "timestamp": int(time.time())
+                    })
+                    lora.switch_to_tx(reply)
+            except Exception as e:
+                print("[Handshake] decode error:", e)
+        time.sleep(0.1)
+
+# Start threads
+threading.Thread(target=tx_worker,       daemon=True).start()
+threading.Thread(target=sync_loop,       daemon=True).start()
+threading.Thread(target=handshake_listener, daemon=True).start()
+
+# —— Flask Hooks & Endpoints —— #
 
 @app.before_first_request
 def boot_beacon():
-    lora.switch_to_tx(b"BOOT_OK")
-    
-def store_synced_message(msg, source="remote"):
-    if not isinstance(msg, dict):
-        return
-    entry = {
-        "from": msg.get("from"),
-        "message": msg.get("message"),
-        "timestamp": msg.get("timestamp", int(time.time())),
-        "source": source,
-        "status": "synced"
-    }
-    synced_messages.append(entry)
-
+    """Send a BOOT_OK on startup."""
+    beacon = encode_message({
+        "type":      "BOOT_OK",
+        "from":      socket.gethostname(),
+        "timestamp": int(time.time())
+    })
+    tx_queue.put(beacon)
 
 @app.route('/api/send', methods=['POST'])
 def api_send():
@@ -81,151 +101,109 @@ def api_send():
     if 'from' not in data or 'message' not in data:
         return jsonify({"error": "Missing 'from' or 'message'"}), 400
 
-    msg     = {'from': data['from'], 'message': data['message'], 'timestamp': data.get('timestamp')}
+    msg     = {
+        'from':      data['from'],
+        'message':   data['message'],
+        'timestamp': data.get('timestamp', int(time.time()))
+    }
     payload = encode_message(msg)
 
+    # split & queue
     for chunk in chunk_payload(payload):
         tx_queue.put(chunk)
 
-    last_sent_msg = msg  # store locally
-
-    # ?? Immediately log it as received (local sync)
-    store_synced_message(msg, source='local')
-
+    last_sent_msg = msg
+    # immediate local echo
+    synced_messages.append({**msg, "source": "local", "status": "synced"})
     return jsonify({"status": "queued", "bytes": len(payload)}), 202
-    
+
 @app.route('/api/messages/<source>', methods=['GET'])
 def api_messages_by_source(source):
-    filtered = [m for m in synced_messages if m["source"] == source]
+    filtered = [m for m in synced_messages if m.get("source")==source]
     return jsonify(filtered[-50:]), 200
 
-def handshake_listener():
-    while True:
-        lora.switch_to_rx()
-        flags = radio.get_irq_flags()
-        if flags.get("rx_done"):
-            radio.clear_irq_flags()
-            payload = radio.read_payload(nocheck=True)
-            try:
-                msg = decode_message(payload)
-                if msg.get("type") == "HANDSHAKE_REQ":
-                    sender = msg.get("from", "unknown")
-                    print(f"[Handshake] Request received from {sender}")
+@app.route('/api/receive', methods=['GET'])
+def api_receive():
+    """Attempt one receive, fallback to last_sent_msg if none."""
+    try:
+        idx, raw, meta = lora.listen_once(timeout=5)
+        if not raw and last_sent_msg:
+            return jsonify({
+                "message": last_sent_msg,
+                "quality": 100,
+                "meta":    {"source": "local-fallback"}
+            }), 200
 
-                    reply = encode_message({
-                        "type": "HANDSHAKE_ACK",
-                        "from": hostname,
-                        "ack_for": sender,
-                        "timestamp": int(time.time())
-                    })
-                    self.switch_to_tx(reply)
-                    time.sleep(0.5)
-                    continue
-            except Exception as e:
-                print(f"[Handshake] Failed to decode packet: {e}")
-        time.sleep(0.1)
+        if not raw:
+            return jsonify({"error": "No message received"}), 404
 
-@app.route('/api/discover', methods=['GET'])
-def discover_endpoint(timeout=5):
-        lora.switch_to_rx()
-        start = time.time()
-        while time.time() - start < timeout:
-            flags = lora.radio.get_irq_flags()
-            if flags.get("rx_done"):
-                lora.radio.clear_irq_flags()
-                payload = lora.radio.read_payload(nocheck=True)
-                try:
-                    msg = decode_message(payload)
-                    if msg.get("from"):
-                        print(f"[Discovery] Found endpoint: {msg['from']}")
-                        return msg["from"]
-                except:
-                    pass
-            time.sleep(0.05)
-        return None
+        decoded = decode_message(raw)
+        score   = crc_score(raw)
+        return jsonify({
+            "message": decoded,
+            "quality": score,
+            "meta":    meta
+        }), 200
 
-def beacon_response():
-    """Respond to a beacon request with a simple message."""
-    return encode_message({
-        "type": "BEACON_RESPONSE",
-        "from": socket.gethostname(),
-        "timestamp": int(time.time())
-    })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/beacon', methods=['POST'])
-def api_beacon():
-
-    peer = discover_endpoint(timeout=5)
-    if peer:
-        message = {
-            "type": "BEACON_MESSAGE",
-            "from": socket.gethostname(),
-            "to": peer,
-            "timestamp": int(time.time())
-        }
-        payload = encode_message(message)
-        lora.switch_to_tx(payload)
-        return jsonify({"status": "message sent", "to": peer}), 200
-    return jsonify({"error": "No endpoint discovered"}), 404
-    
 @app.route('/api/handshake', methods=['POST'])
 def api_handshake():
-    me = request.get_json().get("hostname", "node-A")
+    me   = request.get_json().get("hostname", socket.gethostname())
     peer = lora.initiate_handshake(my_hostname=me)
     if peer:
         return jsonify({"status": "connected", "peer": peer}), 200
-    return jsonify({"error": "No handshake acknowledgment"}), 404
+    return jsonify({"error": "No handshake ACK"}), 404
 
-def handshake_listener():
-    while True:
-        lora.switch_to_rx()
-        flags = radio.get_irq_flags()
-        if flags.get("rx_done"):
-            radio.clear_irq_flags()
-            payload = radio.read_payload(nocheck=True)
-            try:
-                msg = decode_message(payload)
-                if msg.get("type") == "HANDSHAKE_REQ":
-                    sender = msg.get("from", "unknown")
-                    print(f"[Handshake] Request received from {sender}")
+@app.route('/api/discover', methods=['GET'])
+def api_discover():
+    peer = lora.discover_endpoint(timeout=5)
+    if peer:
+        return jsonify({"peer": peer}), 200
+    return jsonify({"error": "No endpoint found"}), 404
 
-                    reply = encode_message({
-                        "type": "HANDSHAKE_ACK",
-                        "from": socket.gethostname(),
-                        "ack_for": sender,
-                        "timestamp": int(time.time())
-                    })
-                    lora.switch_to_tx(reply)
-                    time.sleep(0.5)
-            except Exception as e:
-                print(f"[Handshake] Decode error: {e}")
-        time.sleep(0.1)
-    
+@app.route('/api/beacon', methods=['POST'])
+def api_beacon():
+    peer = lora.discover_endpoint(timeout=5)
+    if peer:
+        msg = encode_message({
+            "type":      "BEACON_MESSAGE",
+            "from":      socket.gethostname(),
+            "to":        peer,
+            "timestamp": int(time.time())
+        })
+        tx_queue.put(msg)
+        return jsonify({"status": "sent", "to": peer}), 200
+    return jsonify({"error": "No peer found"}), 404
+
 @app.route('/api/relay', methods=['POST'])
 def api_relay():
     if not last_sent_msg:
-        return jsonify({"error": "No message to relay"}), 404
+        return jsonify({"error": "Nothing to relay"}), 404
 
     peer = lora.discover_endpoint(timeout=5)
     if not peer:
         return jsonify({"error": "No peer detected"}), 404
 
-    lora.sync_to_peer(last_sent_msg)
-    return jsonify({"status": "relayed", "to": peer}), 200
+    sync_lock.acquire()
+    sync_queue.append({"message": last_sent_msg, "source": "relay", "status": "pending"})
+    sync_lock.release()
 
+    return jsonify({"status": "queued for relay", "to": peer}), 200
 
 @app.route('/api/registers', methods=['GET'])
 def api_registers():
     try:
-        reg_map = {
-            "version":       radio.get_register(0x42),
-            "rssi":          radio.get_register(0x1A),
-            "snr":           radio.get_register(0x1B),
-            "irq_flags":     radio.get_register(0x12),
-            "op_mode":       radio.get_register(0x01),
-            "payload_length":radio.get_register(0x22)
+        regs = {
+            "version":        lora.radio.get_register(0x42),
+            "rssi_raw":       lora.radio.get_register(0x1A),
+            "snr_raw":        lora.radio.get_register(0x1B),
+            "irq_flags":      lora.radio.get_register(0x12),
+            "op_mode":        lora.radio.get_register(0x01),
+            "payload_length": lora.radio.get_register(0x22),
         }
-        return jsonify(reg_map), 200
+        return jsonify(regs), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -234,92 +212,44 @@ def api_scan():
     samples = []
     for _ in range(5):
         samples.append({
-            "rssi": radio.get_rssi(),
-            "snr":  radio.get_snr()
+            "rssi": lora.get_rssi(),
+            "snr":  lora.get_snr()
         })
         time.sleep(1)
     return jsonify(samples), 200
 
-@app.route('/api/receive', methods=['GET'])
-def api_receive():
-    global last_sent_msg
-    try:
-        payload, meta = lora.listen_once(timeout=5)
-        if not payload and last_sent_msg:
-            return jsonify({
-                "message": last_sent_msg,
-                "quality": 100,
-                "meta": {"source": "local-fallback"}
-            }), 200
-
-        if not payload:
-            return jsonify({"error": "No message received"}), 404
-
-        decoded = decode_message(payload)
-        score   = crc_score(payload)
-        return jsonify({
-            "message": decoded,
-            "quality": score,
-            "meta": meta
-        }), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 @app.route('/api/status', methods=['GET'])
 def api_status():
-    status = lora.get_status()
-    flags  = radio.get_irq_flags()
-    hostname = "lora-node-001"  # or dynamically get from config/env
-
-    if tx_queue.qsize() > 0 or flags.get("tx_done") == 0:
-        server_state = "busy"
-    elif flags.get("valid_header") or flags.get("rx_done"):
-        last = radio.read_payload(nocheck=True)
-        try:
-            msg = decode_message(last)
-            server_state = msg.get("from", hostname)
-        except:
-            server_state = hostname
-    else:
-        server_state = "offline"
+    status     = lora.get_status()
+    flags      = lora.radio.get_irq_flags()
+    busy_tx    = (tx_queue.qsize() > 0 or flags.get("tx_done")==0)
+    valid_rx   = flags.get("valid_header") or flags.get("rx_done")
+    server_st  = socket.gethostname() if not valid_rx else "receiving"
 
     return jsonify({
-        "rx_mode": status.get("rx_mode_active"),
+        "rx_mode":       status["rx_mode_active"],
         "tx_queue_depth": tx_queue.qsize(),
-        "rssi": status.get("rssi"),
-        "snr": status.get("snr"),
-        "busy": False,
-        "server_state": server_state
+        "rssi":          status["rssi"],
+        "snr":           status["snr"],
+        "busy":          busy_tx,
+        "server_state":  server_st
     }), 200
-
-
-
 
 @app.route('/api/broadcast', methods=['POST'])
 def api_broadcast():
-    """
-    Immediately TX a raw JSON envelope (no queue).
-    """
     data = request.get_json() or {}
     if not data:
         return jsonify({"error": "Missing JSON payload"}), 400
 
     payload = json.dumps(data).encode()
-    try:
-        lora.switch_to_tx(payload)
-        return jsonify({"status": "broadcasted"}), 202
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    tx_queue.put(payload)
+    return jsonify({"status": "broadcast queued"}), 202
 
 @app.route('/api/sync', methods=['POST'])
 def api_sync():
-    """
-    Fire off whatever lora.sync() does.
-    """
     try:
         lora.sync()
-        return jsonify({"status": "synchronized"}), 200
+        return jsonify({"status": "sync triggered"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -327,30 +257,7 @@ def api_sync():
 def api_health():
     return jsonify({"status": "ok"}), 200
 
-def sync_loop():
-    while True:
-        if not sync_queue:
-            time.sleep(1)
-            continue
-
-        item = sync_queue.pop(0)
-        print(f"[SYNC] Processing message from {item['message']['from']}")
-
-        peer = lora.discover_endpoint(timeout=5)
-        if not peer:
-            print("[SYNC] No peer found. Requeuing message.")
-            sync_queue.append(item)
-            time.sleep(2)
-            continue
-
-        lora.sync_to_peer(item["message"])
-        item["status"] = "sent"
-        synced_messages.append(item)
-        time.sleep(0.5)
-
 
 if __name__ == '__main__':
-    print("Starting Dummy-LoRa backend API on port 5000!")
-    threading.Thread(target=sync_loop, daemon=True).start()
+    print("Starting LoRa Flask API on port 5000")
     app.run(host='0.0.0.0', port=5000, debug=True)
-
