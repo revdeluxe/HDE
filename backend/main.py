@@ -12,7 +12,11 @@ from flask import Flask, request, jsonify
 from message_store import MessageStore
 from interface import LoRaInterface, chunk_payload
 from utils import encode_message, decode_message, crc_score
+from threading import Lock
+sync_lock = Lock()
 
+# How long to wait for a peer ACK (seconds)
+ACK_TIMEOUT = 2
 app = Flask(__name__)
 
 # —— Queues, Locks, Storage —— #
@@ -277,7 +281,48 @@ def api_broadcast():
 def api_health():
     return jsonify({"status": "ok"}), 200
 
+@app.route('/api/sync', methods=['POST'])
+def api_sync():
+    """Send all pending messages, wait for peer ACKs, and confirm locally."""
+    with sync_lock:
+        # 1. Gather all pending messages from the store
+        pending = [m for m in store.all() if m["status"] == "pending"]
+        if not pending:
+            return jsonify({"status": "no pending messages"}), 200
+
+        results = []
+        for msg in pending:
+            # 2. Encode + enqueue for TX
+            payload = encode_message(msg)
+            for chunk in chunk_payload(payload):
+                tx_queue.put(chunk)
+
+            # 3. Optionally wait for an ACK from peer
+            start = time.time()
+            acked = False
+            while time.time() - start < ACK_TIMEOUT:
+                seq, raw, meta = lora.listen_once()
+                if raw:
+                    dec = decode_message(raw)
+                    if dec.get("type") == "ACK" and dec.get("id") == msg["id"]:
+                        acked = True
+                        break
+                time.sleep(0.1)
+
+            # 4. Update store based on ACK result
+            status = "synced" if acked else "failed"
+            if acked:
+                store.confirm(msg["id"])
+            results.append({"id": msg["id"], "status": status})
+
+        return jsonify({
+            "status":        "sync completed",
+            "results":       results,
+            "synced_count":  sum(1 for r in results if r["status"]=="synced"),
+            "failed_count":  sum(1 for r in results if r["status"]=="failed")
+        }), 200
+
 
 if __name__ == '__main__':
-    print("Starting LoRa Flask API on port 5000")
+    logging.info("Starting LoRa Flask API on port 5000")
     app.run(host='0.0.0.0', port=5000, debug=True)
