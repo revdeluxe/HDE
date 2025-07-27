@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
       msgEl.classList.replace('pending', 'sent');
 
       // 2) Trigger sync loop
-      const syncRes = await fetch('/api/sync', { method: 'POST' });
+
       updateHttpStatus(syncRes);
       if (syncRes.ok) {
         msgEl.classList.replace('sent', 'synced');

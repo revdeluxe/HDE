@@ -246,14 +246,6 @@ def api_broadcast():
     tx_queue.put(payload)
     return jsonify({"status": "broadcast queued"}), 202
 
-@app.route('/api/sync', methods=['POST'])
-def api_sync():
-    try:
-        lora.sync()
-        return jsonify({"status": "sync triggered"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 @app.route('/api/health', methods=['GET'])
 def api_health():
     return jsonify({"status": "ok"}), 200
