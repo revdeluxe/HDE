@@ -68,6 +68,13 @@ class LoRaInterface(LoRa):
         self.timeout = timeout
         self.rx_mode_active = False
 
+    def calibration_freq(self) -> float:
+        """
+        Return the frequency used for RX chain calibration.
+        Default is 433 MHz, but can be overridden.
+        """
+        return 433e6
+
     def set_freq(self, freq_hz: float) -> None:
         """
         Guarded frequency setter: always moves through STDBY first.
