@@ -16,6 +16,7 @@ BOARD.SpiDev(spi_bus=0, spi_cs=0)
 
 class CustomLoRa(LoRa):
     def __init__(self, verbose=False):
+        LoRa.set_mode(MODE.STDBY)
         LoRa.__init__(self, verbose=False, do_calibration=True)
         self.set_mode(MODE.STDBY)
         self.set_dio_mapping([0, 0, 0, 0, 0, 0])
