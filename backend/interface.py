@@ -85,7 +85,7 @@ class LoRaInterface(LoRa):
         """
         Prepare the radio for RX (single or continuous).
         """
-        mode = MODE.RXCONT if continuous else MODE.RX_SINGLE
+        mode = MODE.RXCONT
         self.set_mode(MODE.SLEEP)
         time.sleep(0.005)
         self.set_mode(MODE.STDBY)

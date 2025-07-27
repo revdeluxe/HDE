@@ -186,14 +186,15 @@ class LoRa(object):
         # DIO3 00: CadDone
         # DIO3 01: ValidHeader
         # DIO3 10: PayloadCrcError
-        if self.dio_mapping[3] == 0:
-            self.on_cad_done()
-        elif self.dio_mapping[3] == 1:
-            self.on_valid_header()
-        elif self.dio_mapping[3] == 2:
-            self.on_payload_crc_error()
-        else:
-            raise RuntimeError("unknown dio3 mapping!")
+        # if self.dio_mapping[3] == 0:
+        #     self.on_cad_done()
+        # elif self.dio_mapping[3] == 1:
+        #     self.on_valid_header()
+        # elif self.dio_mapping[3] == 2:
+        #     self.on_payload_crc_error()
+        # else:
+        #     raise RuntimeError("unknown dio3 mapping!")
+        raise RuntimeError("DIO4 is not used")
 
     def _dio4(self, channel):
         raise RuntimeError("DIO4 is not used")
