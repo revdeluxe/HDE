@@ -175,9 +175,6 @@ def api_receive():
         "meta":    meta
     }), 200
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 @app.route('/api/handshake', methods=['POST'])
 def api_handshake():
     me   = request.get_json().get("hostname", socket.gethostname())
