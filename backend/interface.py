@@ -1,7 +1,7 @@
 # interface.py
 
 import time
-from BOARD import BOARD
+from SX127x.board_config import BOARD
 from SX127x.LoRa import LoRa, MODE
 from utils import encode_message, decode_message
 
