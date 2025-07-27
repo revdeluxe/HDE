@@ -1,10 +1,8 @@
-# utils.py
 import struct
 import time
 import zlib
 import json
 
-# Protocol version (bumped when format changes)
 PROTOCOL_VERSION = 1
 
 # Header format (version, from_len, from_bytes, msg_len, msg_bytes, timestamp)
@@ -15,11 +13,6 @@ PROTOCOL_VERSION = 1
 HEADER_FMT = ">B B{}s B{}s I"
 
 def encode_message(msg):
-    """
-    Pack a message dict into bytes:
-      [version][from_len][from_bytes][msg_len][msg_bytes][timestamp][crc32]
-    """
-    # 1) Timestamp
     try:
         ts = int(time.mktime(
             time.strptime(msg['timestamp'], "%Y-%m-%dT%H:%M:%S.%f")
@@ -27,11 +20,8 @@ def encode_message(msg):
     except Exception:
         ts = int(time.time())
 
-    # 2) Encode strings
     from_bytes    = msg['from'].encode('utf-8')
     message_bytes = msg['message'].encode('utf-8')
-
-    # 3) Build payload
     header = HEADER_FMT.format(len(from_bytes), len(message_bytes))
     payload = struct.pack(
         header,
@@ -40,15 +30,10 @@ def encode_message(msg):
         len(message_bytes), message_bytes,
         ts
     )
-
-    # 4) Append CRC32
     crc = struct.pack(">I", zlib.crc32(payload))
     return payload + crc
 
 def encode_chunks(payload, chunk_size=240):
-    """
-    Split payload into max-chunk_size slices, prefixing each with a 1-byte seq.
-    """
     chunks = []
     total = len(payload)
     seq_num = 0
@@ -63,21 +48,14 @@ def encode_chunks(payload, chunk_size=240):
     return chunks
 
 def decode_message(data):
-    """
-    Unpack a payload (list or bytes) into a message dict, verify CRC & version.
-    Returns {'error': ...} on failure.
-    """
-    # 0) Ensure bytes
     if isinstance(data, list):
         data = bytes(data)
 
     try:
-        # 1) Read version byte
         version = data[0]
         if version != PROTOCOL_VERSION:
             raise ValueError(f"Unsupported protocol version {version}")
 
-        # 2) Compute offsets
         idx = 1
         from_len = data[idx]
         idx += 1
@@ -92,7 +70,6 @@ def decode_message(data):
         ts = struct.unpack(">I", data[idx:idx + 4])[0]
         idx += 4
 
-        # 3) CRC verification
         recv_crc = struct.unpack(">I", data[idx:idx + 4])[0]
         calc_crc = zlib.crc32(data[:idx])
         if recv_crc != calc_crc:
@@ -110,7 +87,6 @@ def decode_message(data):
 def format_timestamp(ts):
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
 
-# JSON-based helpers (unchanged)
 def compare_with_existing_json(new_msg, cache_path="data/message.json"):
     try:
         with open(cache_path, "r") as f:

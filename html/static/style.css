@@ -221,6 +221,39 @@ button:hover {
   background: var(--primary-dark);
 }
 
+.offline-button {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 12px 24px;
+  background: var(--accent);
+  color: var(--text-light);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+.offline-button:hover {
+  background: darken(var(--primary-dark), 10%);
+}
+
+.back-button {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  padding: 12px 24px;
+  background: var(--primary);
+  color: var(--text-light);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+} 
+.back-button:hover {
+  background: var(--primary-dark);
+}
 .stream-quality.Excellent { color: green; font-weight: 600; }
 .stream-quality.Good      { color: orange; font-weight: 600; }
 .stream-quality.Fair      { color: darkorange; font-weight: 600; }

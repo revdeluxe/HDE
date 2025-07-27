@@ -1,10 +1,10 @@
 # main.py
-
 from flask import Flask, request, jsonify
 import queue, threading, time, socket, utils
 from interface        import LoRaInterface
 from SX127x.LoRa        import LoRa, MODE
 from SX127x.board_config import BOARD
+from utils import encode_message, decode_message, crc_score
 from threading import Lock
 
 sync_queue = []
@@ -14,16 +14,10 @@ tx_queue = queue.Queue()
 BOARD.setup()
 BOARD.SpiDev(spi_bus=0, spi_cs=0)
 
-# 2) Override the assert-y ctor
 class CustomLoRa(LoRa):
     def __init__(self, verbose=False):
-        # Step 1: Delay base init until mode is safe
-        LoRa.__init__(self, verbose=False, do_calibration=False)
-
-        # Step 2: Now set safe mode
+        LoRa.__init__(self, verbose=False, do_calibration=True)
         self.set_mode(MODE.STDBY)
-
-        # Step 4: Finalize IRQ
         self.set_dio_mapping([0, 0, 0, 0, 0, 0])
 
 
@@ -104,7 +98,74 @@ def api_messages_by_source(source):
     filtered = [m for m in synced_messages if m["source"] == source]
     return jsonify(filtered[-50:]), 200
 
+def handshake_listener():
+    while True:
+        lora.switch_to_rx()
+        flags = radio.get_irq_flags()
+        if flags.get("rx_done"):
+            radio.clear_irq_flags()
+            payload = radio.read_payload(nocheck=True)
+            try:
+                msg = decode_message(payload)
+                if msg.get("type") == "HANDSHAKE_REQ":
+                    sender = msg.get("from", "unknown")
+                    print(f"[Handshake] Request received from {sender}")
 
+                    reply = encode_message({
+                        "type": "HANDSHAKE_ACK",
+                        "from": hostname,
+                        "ack_for": sender,
+                        "timestamp": int(time.time())
+                    })
+                    self.switch_to_tx(reply)
+                    time.sleep(0.5)
+                    continue
+            except Exception as e:
+                print(f"[Handshake] Failed to decode packet: {e}")
+        time.sleep(0.1)
+
+@app.route('/api/discover', methods=['GET'])
+def discover_endpoint(timeout=5):
+        lora.switch_to_rx()
+        start = time.time()
+        while time.time() - start < timeout:
+            flags = lora.radio.get_irq_flags()
+            if flags.get("rx_done"):
+                lora.radio.clear_irq_flags()
+                payload = lora.radio.read_payload(nocheck=True)
+                try:
+                    msg = decode_message(payload)
+                    if msg.get("from"):
+                        print(f"[Discovery] Found endpoint: {msg['from']}")
+                        return msg["from"]
+                except:
+                    pass
+            time.sleep(0.05)
+        return None
+
+def beacon_response():
+    """Respond to a beacon request with a simple message."""
+    return encode_message({
+        "type": "BEACON_RESPONSE",
+        "from": socket.gethostname(),
+        "timestamp": int(time.time())
+    })
+
+@app.route('/api/beacon', methods=['POST'])
+def api_beacon():
+
+    peer = discover_endpoint(timeout=5)
+    if peer:
+        message = {
+            "type": "BEACON_MESSAGE",
+            "from": socket.gethostname(),
+            "to": peer,
+            "timestamp": int(time.time())
+        }
+        payload = encode_message(message)
+        lora.switch_to_tx(payload)
+        return jsonify({"status": "message sent", "to": peer}), 200
+    return jsonify({"error": "No endpoint discovered"}), 404
     
 @app.route('/api/handshake', methods=['POST'])
 def api_handshake():
@@ -263,7 +324,6 @@ def api_sync():
 
 @app.route('/api/health', methods=['GET'])
 def api_health():
-    """Liveness probe."""
     return jsonify({"status": "ok"}), 200
 
 def sync_loop():
@@ -290,10 +350,6 @@ def sync_loop():
 
 if __name__ == '__main__':
     print("Starting Dummy-LoRa backend API on port 5000!")
-
-    # Kick off the sync loop in the background
     threading.Thread(target=sync_loop, daemon=True).start()
-
-    # Start Flask server
     app.run(host='0.0.0.0', port=5000, debug=True)
 

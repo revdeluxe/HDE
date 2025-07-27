@@ -1,10 +1,7 @@
 // static/app.js
 
-// Keep track of seen messages
 const seenMessages = new Set();
 let sendBtn;
-
-// Current user (top-level scope)
 let user = null;
 
 // ——————————————————————————————————
@@ -146,19 +143,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 3000);
 });
 
+async function beacon(){
+  const res = await fetch('/api/status');
+  const beacon = await fetch('/api/beacon');
+  const discover_beacon = await fetch('/api/discover_endpoint');
+}
+
 // ——————————————————————————————————
 // Polling Functions
 
 async function refreshStatus() {
   try {
     const res = await fetch('/api/status');
+
     updateHttpStatus(res);
     const {
       rx_mode,
       tx_queue_depth,
       server_state,
       busy,
-      sync_status // optional if you want to expose sync info from backend
+      sync_status 
     } = await res.json();
 
     // Update RX/TX indicators
@@ -179,13 +183,11 @@ async function refreshStatus() {
     }
 
   } catch {
-    document.getElementById('serverState').textContent = 'offline';
+    document.getElementById('serverState').textContent = server_state;
     sendBtn.disabled = true;
     sendBtn.textContent = 'Send';
   }
 }
-
-
 
 async function pollReceive() {
   try {

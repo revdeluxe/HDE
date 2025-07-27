@@ -1,14 +1,14 @@
 # interface.py
 
 import time
+from utils import encode_message, decode_message
 from SX127x.LoRa import MODE
+
 
 class LoRaInterface:
     def __init__(self, radio):
         self.radio = radio
         self.rx_mode_active = False
-
-        # now safe to set mode here:
         self.set_mode(MODE.SLEEP)
 
     def set_mode(self, mode):
@@ -22,7 +22,7 @@ class LoRaInterface:
     def switch_to_tx(self, payload_bytes):
         self.radio.write_payload(payload_bytes)
         self.radio.set_mode(MODE.TX)
-        time.sleep(0.1)  # Let TX finish
+        time.sleep(0.1)
         self.switch_to_rx()
 
     def listen_once(self, timeout=3):
@@ -43,7 +43,6 @@ class LoRaInterface:
 
     def sync(self):
         self.switch_to_rx()
-        # optional: send “SYNC” handshake here
         
     def get_register(self, addr: int):
         return self.radio.get_register(addr)
@@ -94,59 +93,11 @@ class LoRaInterface:
             time.sleep(0.1)
         return None  # no handshake received
 
-    def handshake_listener():
-        while True:
-            lora.switch_to_rx()
-            flags = radio.get_irq_flags()
-            if flags.get("rx_done"):
-                radio.clear_irq_flags()
-                payload = radio.read_payload(nocheck=True)
-                try:
-                    msg = decode_message(payload)
-                    if msg.get("type") == "HANDSHAKE_REQ":
-                        sender = msg.get("from", "unknown")
-                        print(f"[Handshake] Request received from {sender}")
-
-                        reply = encode_message({
-                            "type": "HANDSHAKE_ACK",
-                            "from": hostname,
-                            "ack_for": sender,
-                            "timestamp": int(time.time())
-                        })
-                        lora.switch_to_tx(reply)
-                        time.sleep(0.5)
-                        continue  # stay listening
-                except Exception as e:
-                    print(f"[Handshake] Failed to decode packet: {e}")
-            time.sleep(0.1)
-
-        
-    def discover_endpoint(self, timeout=5):
-        self.switch_to_rx()
-        start = time.time()
-        while time.time() - start < timeout:
-            flags = self.radio.get_irq_flags()
-            if flags.get("rx_done"):
-                self.radio.clear_irq_flags()
-                payload = self.radio.read_payload(nocheck=True)
-                try:
-                    msg = decode_message(payload)
-                    if msg.get("from"):
-                        print(f"[Discovery] Found endpoint: {msg['from']}")
-                        return msg["from"]
-                except:
-                    pass
-            time.sleep(0.05)
-        return None  # no endpoint found
-
-
     def get_rssi(self):
-        # RegPktRssiValue = 0x1A
         raw = self.get_register(0x1A)
         return -137 + raw if raw < 256 else None
 
     def get_snr(self):
-        # RegPktSnrValue = 0x1B
         raw = self.get_register(0x1B)
         return raw / 4.0 - 32 if raw < 256 else None
 
