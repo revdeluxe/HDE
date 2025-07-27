@@ -7,19 +7,21 @@ import queue
 import threading
 
 from threading import Lock
-from flask import Flask, request, jsonify
-
+from flask import Flask, request, jsonify, logging
+from message_store import MessageStore
 from interface import LoRaInterface, chunk_payload
 from utils import encode_message, decode_message, crc_score
 
 app = Flask(__name__)
 
 # —— Queues, Locks, Storage —— #
+logging.basicConfig(level=logging.INFO)
 tx_queue      = queue.Queue()
 sync_queue    = []
 sync_lock     = Lock()
 synced_messages = []
 last_sent_msg = None
+store = MessageStore()
 
 # —— Radio Setup —— #
 # BOARD.setup() and BOARD.SpiDev() live inside interface.radio_init()
@@ -29,15 +31,21 @@ lora = LoRaInterface()
 # —— Background Workers —— #
 
 def tx_worker():
-    """Pull chunks off tx_queue and send them."""
+    """Continuously sends chunks from tx_queue over LoRa."""
     while True:
-        chunk = tx_queue.get()
+        chunk = tx_queue.get()  # blocks until a chunk is available
         try:
-            lora.switch_to_tx(chunk)
+            lora.send(chunk)
+            logging.info(f"TX → sent chunk of {len(chunk)} bytes")
         except Exception as e:
-            print("[TX Worker] Error sending:", e)
+            logging.error(f"TX error: {e}")
         finally:
-            time.sleep(0.1)
+            tx_queue.task_done()
+        # throttle if needed
+        time.sleep(0.05)
+
+# Start the TX thread as a daemon so it exits with the main process
+threading.Thread(target=tx_worker, daemon=True).start()
 
 def sync_loop():
     """Process sync_queue: discover peer, then sync_to_peer."""
@@ -95,56 +103,77 @@ def boot_beacon():
     })
     tx_queue.put(beacon)
 
-@app.route('/api/send', methods=['POST'])
+@app.route("/api/send", methods=["POST"])
 def api_send():
     global last_sent_msg
+
     data = request.get_json() or {}
-    if 'from' not in data or 'message' not in data:
+    if "from" not in data or "message" not in data:
         return jsonify({"error": "Missing 'from' or 'message'"}), 400
 
-    msg     = {
-        'from':      data['from'],
-        'message':   data['message'],
-        'timestamp': data.get('timestamp', int(time.time()))
-    }
-    payload = encode_message(msg)
+    # 1. Persist locally as "pending"
+    msg = store.add(
+        sender=data["from"],
+        text=data["message"],
+        ts=data.get("timestamp"),
+    )
+    last_sent_msg = msg
 
-    # split & queue
+    # 2. Encode, chunk, and enqueue for TX
+    payload = encode_message(msg)
     for chunk in chunk_payload(payload):
         tx_queue.put(chunk)
 
-    last_sent_msg = msg
-    # immediate local echo
-    synced_messages.append({**msg, "source": "local", "status": "synced"})
-    return jsonify({"status": "queued", "bytes": len(payload)}), 202
+    logging.info(f"Queued {len(payload)} bytes in {tx_queue.qsize()} chunks")
+    return jsonify({"status": "queued", "id": msg["id"], "bytes": len(payload)}), 202
 
-@app.route('/api/messages/<source>', methods=['GET'])
+
+@app.route("/api/messages/<source>", methods=["GET"])
 def api_messages_by_source(source):
-    filtered = [m for m in synced_messages if m.get("source")==source]
+    """Return up to 50 messages filtered by 'origin' (local vs remote)."""
+    all_msgs = store.all()
+    filtered = [m for m in all_msgs if m.get("origin") == source]
+    # Return the most recent 50
     return jsonify(filtered[-50:]), 200
 
-@app.route('/api/receive', methods=['GET'])
+
+@app.route("/api/receive", methods=["GET"])
 def api_receive():
-    """Attempt one receive, fallback to last_sent_msg if none."""
+    """Try one LoRa receive; fallback to last_sent_msg if nothing on-air."""
     try:
-        idx, raw, meta = lora.listen_once()
-        if not raw and last_sent_msg:
+        seq, raw_bytes, meta = lora.listen_once()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    # No packet received → fallback or 404
+    if not raw_bytes:
+        if last_sent_msg:
             return jsonify({
                 "message": last_sent_msg,
                 "quality": 100,
                 "meta":    {"source": "local-fallback"}
             }), 200
 
-        if not raw:
-            return jsonify({"error": "No message received"}), 404
+        return jsonify({"error": "No message received"}), 404
 
-        decoded = decode_message(raw)
-        score   = crc_score(raw)
-        return jsonify({
-            "message": decoded,
-            "quality": score,
-            "meta":    meta
-        }), 200
+    # Decode and compute quality score
+    decoded = decode_message(raw_bytes)
+    score   = crc_score(raw_bytes)
+
+    # Persist under "received" status
+    store.add(
+        sender=decoded["from"],
+        text=decoded["message"],
+        msg_id=decoded["id"],
+        ts=decoded.get("timestamp"),
+        origin=socket.gethostname()
+    )
+
+    return jsonify({
+        "message": decoded,
+        "quality": score,
+        "meta":    meta
+    }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
