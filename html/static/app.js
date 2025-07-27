@@ -4,11 +4,11 @@
 // Constants & State
 
 const POLL_INTERVAL_MS = 3000;
-const CHUNK_POLL_INTERVAL = POLL_INTERVAL_MS;
-const seenMessages = new Set();
-let unreadCount = 0;
+const seenMessages    = new Set();
+let unreadCount       = 0;
 let sendBtn;
-let user = null;
+let user      = null;
+let fileName  = 'message.json';  // JSON file to fetch messages from
 
 // ——————————————————————————————————
 // Utility Functions
@@ -122,12 +122,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       msgEl.classList.replace('pending', 'sent');
 
-      // 2) Trigger sync loop
+      // 2) Re-fetch full message list to sync
+      await pollMessages();
 
-      updateHttpStatus(syncRes);
-      if (syncRes.ok) {
-        msgEl.classList.replace('sent', 'synced');
-      }
+      // 3) Mark this one synced
+      msgEl.classList.replace('sent', 'synced');
     } catch {
       msgEl.classList.replace('pending', 'error');
     }
@@ -145,12 +144,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initial load
   refreshStatus();
-  pollReceive();
+  pollMessages();
 
   // Poll periodically
   setInterval(() => {
     refreshStatus();
-    pollReceive();
+    pollMessages();
   }, POLL_INTERVAL_MS);
 });
 
@@ -163,7 +162,7 @@ async function refreshStatus() {
     updateHttpStatus(res);
 
     if (!res.ok) {
-      sendBtn.disabled = true;
+      sendBtn.disabled    = true;
       sendBtn.textContent = 'Send';
       return;
     }
@@ -184,33 +183,38 @@ async function refreshStatus() {
     document.getElementById('serverState').textContent = server_state;
 
     const isSyncing = tx_queue_depth > 0 || busy;
-    sendBtn.disabled = isSyncing;
+    sendBtn.disabled    = isSyncing;
     sendBtn.textContent = isSyncing ? 'Syncing…' : 'Send';
   } catch (err) {
     console.error('Status refresh failed', err);
-    sendBtn.disabled = true;
+    sendBtn.disabled    = true;
     sendBtn.textContent = 'Send';
   }
 }
 
-async function pollReceive() {
+async function pollMessages() {
   try {
-    const res = await fetch('/api/receive');
+    const res = await fetch(`/api/messages/${fileName}`);
+    updateHttpStatus(res);
     if (!res.ok) return;
 
-    const { message, quality, meta } = await res.json();
-    const key = `${message.from}|${message.message}|${message.timestamp || ''}`;
-    const isMine = message.from === user;
-
-    appendMessage({
-      from: message.from,
-      message: message.message,
-      status: isMine ? 'synced' : 'received',
-      key
+    const allMessages = await res.json();
+    allMessages.forEach(msg => {
+      const key    = msg.id || `${msg.from}|${msg.message}|${msg.ts}`;
+      const isMine = msg.from === user;
+      appendMessage({
+        from:    msg.from,
+        message: msg.message,
+        status:  isMine ? 'synced' : 'received',
+        key
+      });
+      if (!isMine) showNotification();
     });
 
-    if (!isMine) showNotification();
+    // Re-enable send button after syncing
+    sendBtn.disabled    = false;
+    sendBtn.textContent = 'Send';
   } catch (err) {
-    console.warn('Receive poll failed', err);
+    console.warn('pollMessages() failed', err);
   }
 }
