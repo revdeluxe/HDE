@@ -26,9 +26,8 @@ class LoRaInterface(LoRa):
         self,
         spi_bus: int = 0,
         spi_cs: int = 0,
-        frequency: float = 915e6,
+        frequency: float = 433e6,
         sf: int = 7,
-        bw: float = 125e3,
         pa_select: int = 1,
         max_power: int = 7,
         output_power: int = 15,
@@ -58,7 +57,6 @@ class LoRaInterface(LoRa):
             output_power=output_power,
         )
         self.set_spreading_factor(sf)
-        self.set_bandwidth(bw)
 
         # Sleep until used
         self.set_mode(MODE.SLEEP)
