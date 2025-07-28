@@ -29,6 +29,7 @@ class BOARD:
     RESET = 17
     DIO0  = 22
     DIO1  = 23  # only if you wire it
+    CS = 8 # SPI CE0 (GPIO 8)
 
 
     # holds the spidev handle
@@ -43,6 +44,7 @@ class BOARD:
         safe_setup(cls.RESET, GPIO.OUT, initial=GPIO.HIGH)
         safe_setup(cls.DIO0,  GPIO.IN)
         safe_setup(cls.DIO1,  GPIO.IN)
+        safe_setup(cls.CS,    GPIO.OUT, initial=GPIO.HIGH)
 
         GPIO.output(cls.RESET, GPIO.LOW)
         GPIO.output(cls.RESET, GPIO.HIGH)
