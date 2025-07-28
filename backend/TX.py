@@ -2,7 +2,7 @@ from SX127x.LoRa import LoRa, MODE
 from SX127x.board_config import BOARD
 import time
 
-BOARD.setup()
+BOARD.setup(cls=BOARD)
 BOARD.SpiDev(spi_bus=0, spi_cs=0)
 lora = LoRa(verbose=False, do_calibration=True)
 
