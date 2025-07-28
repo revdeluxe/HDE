@@ -157,40 +157,21 @@ document.addEventListener('DOMContentLoaded', () => {
 // Polling & Status
 
 async function refreshStatus() {
-  try {
-    const res = await fetch('/api/status');
-    updateHttpStatus(res);
-
-    if (!res.ok) {
-      sendBtn.disabled    = true;
-      sendBtn.textContent = 'Send';
-      return;
-    }
-
-    const {
-      rx_mode,
-      tx_queue_depth,
-      rssi,
-      snr,
-      busy,
-      server_state
-    } = await res.json();
-
-    document.getElementById('rxMode').textContent      = rx_mode ? 'ON' : 'OFF';
-    document.getElementById('queueDepth').textContent  = tx_queue_depth;
-    document.getElementById('rssi').textContent        = rssi ?? '—';
-    document.getElementById('snr').textContent         = snr  ?? '—';
-    document.getElementById('serverState').textContent = server_state;
-
-    const isSyncing = tx_queue_depth > 0 || busy;
-    sendBtn.disabled    = isSyncing;
-    sendBtn.textContent = isSyncing ? 'Syncing…' : 'Send';
-  } catch (err) {
-    console.error('Status refresh failed', err);
-    sendBtn.disabled    = true;
-    sendBtn.textContent = 'Send';
-  }
+  fetch('/api/status')
+    .then(r => r.json())
+    .then(data => {
+      Object.entries(data).forEach(([key, value]) => {
+        const el = document.getElementById(`status-${key}`);
+        if (el) {
+          el.textContent = value == null ? 'N/A' : value;
+        } else {
+          console.warn(`No element for status-${key}`);
+        }
+      });
+    })
+    .catch(e => console.error('Status refresh failed', e));
 }
+
 
 async function pollMessages() {
   try {
