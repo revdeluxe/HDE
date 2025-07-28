@@ -77,17 +77,21 @@ def tx_worker():
     while True:
         chunk = tx_queue.get()
 
-        # if someone accidentally enqueued a dict, unwrap it
+        # Ensure the chunk is in bytes
         if isinstance(chunk, dict):
-            chunk = chunk.get("data", b"")
+            # If a dict is enqueued, encode it as bytes using chunk_payload
+            payload = encode_message(chunk)
+            for sub_chunk in chunk_payload(payload):
+                tx_queue.put(sub_chunk)
+            continue
 
-        # sanity check
+        # Sanity check
         if not isinstance(chunk, (bytes, bytearray)):
             logging.error("TX error: expected bytes, got %s", type(chunk))
             continue
 
         try:
-            LoRaInterface.switch_to_tx(chunk)   # or radio.write(chunk), depending on API
+            lora.switch_to_tx(chunk)  # Send the chunk using LoRaInterface
             logging.info(f"Sent {len(chunk)} bytes")
         except Exception as e:
             logging.error("TX error: %s", e)
