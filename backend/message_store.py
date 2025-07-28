@@ -58,10 +58,10 @@ class MessageStore:
         self._save()
         return msg
 
-    def get_all(self) -> List[Dict[str, Any]]:
+    def get_all(self) -> list[dict[str, any]]:
         return list(self.messages.values())
 
-    def get_crc_map(self) -> Dict[int, int]:
+    def get_crc_map(self) -> dict[int, int]:
         return {mid: m['crc'] for mid, m in self.messages.items()}
 
     def all(self) -> list:
