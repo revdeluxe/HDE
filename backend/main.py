@@ -91,7 +91,7 @@ def tx_worker():
             continue
 
         try:
-            radio.send(chunk)   # or radio.write(chunk), depending on API
+            LoRaInterface.send(chunk)   # or radio.write(chunk), depending on API
             logging.info(f"Sent {len(chunk)} bytes")
         except Exception as e:
             logging.error("TX error: %s", e)
