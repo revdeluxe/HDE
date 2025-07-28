@@ -41,7 +41,6 @@ class BOARD:
         safe_setup(cls.RESET, GPIO.OUT, initial=GPIO.HIGH)
         safe_setup(cls.DIO0,  GPIO.IN)
         safe_setup(cls.DIO1,  GPIO.IN)
-        safe_setup(cls.CS,    GPIO.OUT, initial=GPIO.HIGH)
 
         GPIO.output(cls.RESET, GPIO.LOW)
         GPIO.output(cls.RESET, GPIO.HIGH)
