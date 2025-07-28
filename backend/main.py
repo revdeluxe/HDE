@@ -78,18 +78,24 @@ def api_list_sources():
 
 
 def tx_worker():
-    """Continuously sends chunks from tx_queue over LoRa."""
     while True:
-        chunk = tx_queue.get()  # blocks until a chunk is available
+        chunk = tx_queue.get()
+
+        # if someone accidentally enqueued a dict, unwrap it
+        if isinstance(chunk, dict):
+            chunk = chunk.get("data", b"")
+
+        # sanity check
+        if not isinstance(chunk, (bytes, bytearray)):
+            logging.error("TX error: expected bytes, got %s", type(chunk))
+            continue
+
         try:
-            lora.send(chunk)
-            logging.info(f"TX → sent chunk of {len(chunk)} bytes")
+            radio.send(chunk)   # or radio.write(chunk), depending on API
+            logging.info(f"Sent {len(chunk)} bytes")
         except Exception as e:
-            logging.error(f"TX error: {e}")
-        finally:
-            tx_queue.task_done()
-        # throttle if needed
-        time.sleep(0.05)
+            logging.error("TX error: %s", e)
+
 
 # Start the TX thread as a daemon so it exits with the main process
 threading.Thread(target=tx_worker, daemon=True).start()

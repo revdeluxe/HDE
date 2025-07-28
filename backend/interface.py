@@ -7,12 +7,12 @@ from SX127x.LoRa import LoRa, MODE
 from utils import encode_message, decode_message, encode_chunks
 
 CHUNK_SIZE = 240
-def chunk_payload(payload: bytes, size: int = CHUNK_SIZE) -> list[bytes]:
-    """
-    Split a bytes payload into fixed-size chunks, prefixing each with a sequence ID.
-    Internally uses encode_chunks() from utils.
-    """
-    return encode_chunks(payload, chunk_size=size)
+def chunk_payload(payload: bytes, max_size: int = 64) -> list[dict]:
+    chunks = []
+    for i in range(0, len(payload), max_size):
+        fragments = payload[i:i + max_size]
+        chunks.append({"data": fragments})
+    return chunks
 
 class LoRaInterface(LoRa):
     """
