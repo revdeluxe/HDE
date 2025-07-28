@@ -115,6 +115,23 @@ def calculate_quality(diff_score, latency,
     quality -= min(latency * 5, max_penalty)
     return max(quality, 0)
 
+def chunk_payload(payload: bytes, chunk_size: int = 240) -> list[bytes]:
+    """
+    Split payload into chunks of `chunk_size` bytes,
+    prefix each with a 1-byte sequence number.
+    """
+    chunks = []
+    total = len(payload)
+    seq_num = 0
+
+    for offset in range(0, total, chunk_size):
+        chunk = payload[offset:offset + chunk_size]
+        prefixed = struct.pack(">B", seq_num % 256) + chunk
+        chunks.append(prefixed)
+        seq_num += 1
+
+    return chunks
+
 def crc_score(payload_bytes, message_cache="data/message.json"):
     now = int(time.time())
     decoded = decode_message(payload_bytes)
