@@ -9,21 +9,23 @@ from SX127x.LoRa import LoRa, MODE
 
 from utils import encode_message, decode_message
 
-CHUNK_SIZE = 240  # maximum raw payload per LoRa packet
-def chunk_payload(payload: bytes, max_size: int = 64) -> list[dict]:
-    chunks = []
-    for i in range(0, len(payload), max_size):
-        fragments = payload[i:i + max_size]
-        chunks.append({"data": fragments})
-    return chunks
+CHUNK_SIZE = 240  # max bytes per LoRa packet
+
+
+def chunk_payload(payload: bytes, max_size: int = CHUNK_SIZE) -> List[bytes]:
+    """
+    Split a bytes payload into MTU-safe chunks.
+    """
+    return [payload[i : i + max_size] for i in range(0, len(payload), max_size)]
+
 
 class LoRaInterface(LoRa):
     """
-    A LoRa wrapper that:
-      - sends/receives JSON-serializable dicts
-      - splits large payloads into MTU-safe chunks
-      - enforces single-threaded TX/RX with IRQ-flag polling
-      - supports a CRC-sync handshake for map exchange
+    LoRa wrapper for:
+      - JSON-serializable dict ↔ framed bytes + CRC
+      - automatic chunking for SX127x MTU
+      - single-threaded IRQ polling TX/RX
+      - CRC-map handshake
     """
 
     def __init__(
@@ -39,36 +41,45 @@ class LoRaInterface(LoRa):
         verbose: bool = False,
         do_calibration: bool = True,
     ):
-        # --- Hardware & SPI setup ---
+        # 1) Low-level hardware & SPI init
         BOARD.setup()
         BOARD.SpiDev(spi_bus=spi_bus, spi_cs=spi_cs)
 
-        # Initialize without auto-calibration
+        # 2) Base LoRa __init__ without auto-calibration
         super().__init__(verbose=verbose, do_calibration=False)
 
-        # Sleep → optional RX chain calibration → standby
+        # 3) Enter SLEEP, then optionally calibrate RX chain
         self.set_mode(MODE.SLEEP)
         time.sleep(0.05)
-        if do_calibration:
-            super().rx_chain_calibration(frequency)
 
-        # RF parameters
+        if do_calibration:
+            # ensure standby so set_freq() calls inside calibration don't assert
+            self.set_mode(MODE.STDBY)
+            time.sleep(0.05)
+            super().rx_chain_calibration(frequency)
+            # return to sleep after calibration
+            self.set_mode(MODE.SLEEP)
+            time.sleep(0.05)
+
+        # 4) Set RF parameters
         self.set_freq(frequency)
         self.set_spreading_factor(sf)
         self.set_pa_config(
-            pa_select=pa_select, max_power=max_power, output_power=output_power
+            pa_select=pa_select,
+            max_power=max_power,
+            output_power=output_power,
         )
 
-        # Final mode & state
+        # 5) Finalize: go back to sleep until TX/RX calls
         self.set_mode(MODE.SLEEP)
         self.timeout = timeout
         self.rx_mode_active = False
 
     def received_flag(self) -> bool:
         """
-        Return True if any RX-related or TX-done IRQ flags are still set.
+        True if any RX-related or TX-done IRQ flags are still set.
         """
-        flags = self.get_irq_flags()  # returns a dict of flag_name: int
+        flags = self.get_irq_flags()  # dict of flag_name: int
         return bool(
             flags.get("rx_done")
             or flags.get("rx_timeout")
@@ -78,32 +89,32 @@ class LoRaInterface(LoRa):
 
     def switch_to_rx(self, continuous: bool = True) -> None:
         """
-        Put the radio into RX mode. If continuous is False, listen_once() will stop after one packet.
+        Enter RX mode: continuous or single-shot.
         """
-        mode = MODE.RXCONT if continuous else MODE.RX
+        mode = MODE.RXCONT if continuous else MODE.RXSINGLE
         self.set_mode(MODE.SLEEP)
         time.sleep(0.005)
         self.set_mode(MODE.STDBY)
-        self.clear_irq_flags()  # ensure clean slate
+        self.clear_irq_flags()
         self.set_mode(mode)
         self.rx_mode_active = True
 
     def switch_to_tx(self, payload: bytes) -> None:
         """
-        Load a bytes payload into FIFO and transmit. Blocks until TX-done.
+        Load raw bytes into FIFO & transmit.
+        Blocks until TX-done IRQ.
         """
-        # Wait out any lingering RX flags
+        # wait out any pending flags
         deadline = time.time() + self.timeout
         while time.time() < deadline and self.received_flag():
             time.sleep(0.01)
 
-        # Clear IRQs, go to standby, write payload, then TX
         self.clear_irq_flags()
         self.set_mode(MODE.STDBY)
         self.write_payload(list(payload))
         self.set_mode(MODE.TX)
 
-        # Wait for TX-done on DIO0
+        # wait for DIO0 TX-done
         deadline = time.time() + self.timeout
         while time.time() < deadline:
             flags = self.get_irq_flags()
@@ -111,13 +122,12 @@ class LoRaInterface(LoRa):
                 break
             time.sleep(0.001)
 
-        # Clear TX-done flag, return to standby
         self.clear_irq_flags(TxDone=1)
         self.set_mode(MODE.STDBY)
 
     def send(self, msg: Dict[str, Any]) -> None:
         """
-        High-level send: dict → JSON+CRC bytes → chunks → TX each chunk.
+        High-level send: dict → framed bytes → chunk → TX.
         """
         raw = encode_message(msg)
         for chunk in chunk_payload(raw):
@@ -128,36 +138,37 @@ class LoRaInterface(LoRa):
         self,
     ) -> Tuple[Optional[int], Optional[bytes], Dict[str, float]]:
         """
-        Wait up to self.timeout for one packet. Returns:
-          (sequence_id, raw_bytes, {'rssi':…, 'snr':…})
+        Single-shot RX: wait up to self.timeout. Returns:
+          (seq_id, raw_bytes, {rssi, snr})
         or (None, None, {}).
         """
         self.switch_to_rx(continuous=False)
         start = time.time()
 
-        while (time.time() - start) < self.timeout:
+        while time.time() - start < self.timeout:
             flags = self.get_irq_flags()
             if flags.get("rx_done"):
-                # packet received
                 self.clear_irq_flags()
                 raw = bytes(self.read_payload(nocheck=True))
                 seq = raw[0]
                 data = raw[1:]
-                return seq, data, {"rssi": self.get_rssi(), "snr": self.get_snr()}
+                return seq, data, {
+                    "rssi": self.get_rssi(),
+                    "snr": self.get_snr(),
+                }
             time.sleep(0.01)
 
-        # timed out
         return None, None, {}
 
     def on_receive(self, raw: bytes) -> Dict[str, Any]:
         """
-        Decode a raw payload (after stripping seq byte) into the original dict.
+        Decode raw bytes (after seq-byte strip) into a Python dict.
         """
         return decode_message(raw)
 
     def broadcast(self, payload: bytes, listen_after: bool = False):
         """
-        Send raw bytes without framing. Optionally do a single listen afterward.
+        Fire-and-forget raw bytes. Optionally listen once.
         """
         self.switch_to_tx(payload)
         if listen_after:
@@ -165,9 +176,13 @@ class LoRaInterface(LoRa):
 
     def initiate_handshake(self, my_hostname: str = "node-A") -> Optional[str]:
         """
-        Send HANDSHAKE_REQ, then listen for HANDSHAKE_ACK. Return peer hostname or None.
+        Send HANDSHAKE_REQ, wait for HANDSHAKE_ACK, return peer hostname.
         """
-        req = {"type": "HANDSHAKE_REQ", "from": my_hostname, "timestamp": int(time.time())}
+        req = {
+            "type": "HANDSHAKE_REQ",
+            "from": my_hostname,
+            "timestamp": int(time.time()),
+        }
         self.send(req)
 
         seq, raw, _ = self.listen_once()
@@ -188,7 +203,7 @@ class LoRaInterface(LoRa):
 
     def get_status(self) -> Dict[str, Any]:
         """
-        A snapshot of radio state for external status APIs.
+        Operator-friendly status snapshot.
         """
         return {
             "rx_mode_active": self.rx_mode_active,
@@ -198,25 +213,22 @@ class LoRaInterface(LoRa):
 
     def request_remote_crc_map(self) -> Dict[int, int]:
         """
-        Ask the remote node for its CRC map. Sends a raw 'CRC_REQUEST'
-        then waits for a JSON response {id: crc, ...}.
+        Send “CRC_REQUEST” then wait for JSON reply {id:crc,…}.
+        Raises TimeoutError on no or invalid response.
         """
-        # send the magic request
         self.switch_to_tx(b"CRC_REQUEST")
-
-        # wait for JSON reply
         _, raw, _ = self.listen_once()
-        if raw:
-            try:
-                return json.loads(raw.decode("utf-8"))
-            except ValueError as e:
-                raise RuntimeError(f"Invalid CRC-map JSON: {e}")
-        else:
+        if not raw:
             raise TimeoutError("No CRC-map response received")
+
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except ValueError as e:
+            raise RuntimeError(f"Invalid CRC-map JSON: {e}")
 
     def send_crc_map(self, crc_map: Dict[int, int]) -> None:
         """
-        On slave: respond to a CRC_REQUEST by transmitting your CRC map.
+        Reply to CRC_REQUEST by sending your CRC map as JSON.
         """
         payload = json.dumps(crc_map).encode("utf-8")
         self.switch_to_tx(payload)
