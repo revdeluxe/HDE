@@ -15,8 +15,7 @@ from interface import LoRaInterface, chunk_payload
 from utils import encode_message, decode_message, crc_score
 from threading import Lock
 
-sync_lock = Lock()
-
+lora = LoRaInterface()
 # How long to wait for a peer ACK (seconds)
 ACK_TIMEOUT = 2
 app = Flask(__name__)
@@ -32,11 +31,6 @@ last_sent_msg = None
 latest_status = {}
 latest_flags  = {}
 STATUS_LOCK   = threading.Lock()
-
-# —— Radio Setup —— #
-# BOARD.setup() and BOARD.SpiDev() live inside interface.radio_init()
-# LoRaInterface() will call radio_init() automatically
-lora = LoRaInterface()
 
 # —— Background Workers —— #
 MESSAGE_DIR = './messages/'
