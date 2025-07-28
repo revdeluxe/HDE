@@ -198,8 +198,8 @@ class LoRaInterface(LoRa):
         with STATUS_LOCK:
             latest_status.clear()
             latest_flags.clear()
-            latest_status.update(radio.get_status())
-            latest_flags.update(radio.get_irq_flags())
+            latest_status.update(self.get_status())
+            latest_flags.update(self.get_irq_flags())
 
         
         time.sleep(0.01)
