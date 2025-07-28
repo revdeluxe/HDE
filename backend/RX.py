@@ -17,6 +17,9 @@ start = time.time()
 while time.time() - start < 5:
     flags = lora.get_irq_flags()
     if flags.get("rx_done"):
+        if lora.received():
+            payload = lora.read_payload(nocheck=True)
+            print("Received:", payload)
         raw = lora.read_payload(nocheck=True)
         print("Got raw:", bytes(raw))
         print("RSSI:", lora.get_rssi_value())

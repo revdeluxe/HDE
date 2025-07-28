@@ -14,7 +14,7 @@ lora.set_mode(MODE.SLEEP)
 
 # TX loop
 lora.set_mode(MODE.STDBY)
-lora.write_payload([0x01,0x02,0x03,0x04])
+lora.write_payload([0x01, 0x02, 0x03, 0x04])
 lora.set_mode(MODE.TX)
 time.sleep(1)
 print("Done TX")
