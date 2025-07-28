@@ -50,7 +50,7 @@ class BOARD:
                 print(f"[WARN] GPIO.setup(pin={pin}) failed: {e}")
 
         # 1) NSS / CS for SPI  
-        safe_setup(BOARD.CS, GPIO.OUT, initial=GPIO.HIGH)
+        safe_setup(BOARD, GPIO.OUT, initial=GPIO.HIGH)
 
         # 2) RESET: start released (HIGH), then pulse LOW→HIGH
         safe_setup(BOARD.RESET, GPIO.OUT, initial=GPIO.HIGH)
