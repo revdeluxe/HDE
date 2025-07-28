@@ -4,7 +4,7 @@ import time
 
 BOARD.setup()
 BOARD.SpiDev(spi_bus=0, spi_cs=0)
-lora = LoRa(verbose=False, do_calibration=False)
+lora = LoRa(verbose=False, do_calibration=True)
 
 lora.set_mode(MODE.STDBY)
 lora.set_freq(433e6)
