@@ -1,15 +1,20 @@
-import os, json, time, uuid, socket
+import os, json, time, uuid, socket, threading
 from threading import Lock
 
 STORE_FILE = 'messages.json'
 
 class MessageStore:
-    def __init__(self, path: str):
-        self.path = path
-        self.lock = Lock()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        if not os.path.isfile(path):
-            with open(path, "w", encoding="utf-8") as f:
+    def __init__(self, filename, self_id=None):
+        self.filename = filename
+        # Set self_id to provided value or default to the hostname
+        self.self_id = self_id or socket.gethostname()
+        self._lock   = threading.Lock()
+        # ensure file exists
+        try:
+            with open(self.filename, 'r') as f:
+                pass
+        except FileNotFoundError:
+            with open(self.filename, 'w') as f:
                 json.dump([], f)
 
     def _load(self):
@@ -25,27 +30,41 @@ class MessageStore:
         with open(STORE_FILE, 'w') as f:
             json.dump(self._msgs, f, indent=2)
 
-    def add(self, sender, text, msg_id=None, ts=None, origin=None):
+    def add(self, from_, message, timestamp=None, origin=None, status="pending"):
+        # Use origin or fallback to self.self_id
         origin = origin or self.self_id
-        msg_id = msg_id or f"{sender}-{uuid.uuid4()}"
-        ts     = ts or time.time()
+
         msg = {
-            "id":      msg_id,
-            "from":    sender,
-            "message": text,
-            "ts":      ts,
-            "origin":  origin,
-            "status":  "pending" if origin == self.self_id else "received"
+            "from":      from_,
+            "message":   message,
+            "timestamp": timestamp,
+            "origin":    origin,
+            "status":    status
         }
-        with self.lock:
-            if not any(m["id"] == msg_id for m in self._msgs):
-                self._msgs.append(msg)
-                self._save()
+        with self._lock:
+            with open(self.filename, 'r+') as f:
+                data = json.load(f)
+                data.append(msg)
+                f.seek(0)
+                json.dump(data, f, indent=2)
         return msg
 
-    def all(self):
-        with self.lock:
-            return list(self._msgs)
+    def all(self) -> list:
+        with self._lock, open(self.filename, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def append(self, msg: dict):
+        with self._lock:
+            data = []
+            try:
+                with open(self.filename, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except json.JSONDecodeError:
+                data = []
+
+            data.append(msg)
+            with open(self.path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
 
     def confirm(self, msg_id):
         with self.lock:
