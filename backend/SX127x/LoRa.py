@@ -830,7 +830,7 @@ class LoRa(object):
         """
         return 0x87 if pa_dac else 0x84
 
-    def rx_chain_calibration(self, freq):
+    def rx_chain_calibration(self, freq=433):
         """ Run the image calibration (see Semtech documentation section 4.2.3.8)
         :param freq: Frequency for the HF calibration
         :return: None
@@ -838,7 +838,6 @@ class LoRa(object):
         # backup some registers
         op_mode_bkup = self.get_mode()
         pa_config_bkup = self.get_register(REG.LORA.PA_CONFIG)
-        freq_bkup = self.get_freq()
         # for image calibration device must be in FSK standby mode
         self.set_mode(MODE.FSK_STDBY)
         # cut the PA
@@ -858,7 +857,6 @@ class LoRa(object):
         # put back the saved parameters
         self.set_mode(op_mode_bkup)
         self.set_register(REG.LORA.PA_CONFIG, pa_config_bkup)
-        self.set_freq(freq_bkup)
 
     def dump_registers(self):
         """ Returns a list of [reg_addr, reg_name, reg_value] tuples. Chip is put into mode SLEEP.
