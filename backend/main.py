@@ -160,9 +160,9 @@ def api_send():
 
     # 1. Persist locally as "pending"
     msg = store.add(
-        sender=data["from"],
-        text=data["message"],
-        ts=data.get("timestamp"),
+        from_=data["from"],
+        message=data["message"],
+        timestamp=data.get("timestamp"),
     )
     last_sent_msg = msg
 
