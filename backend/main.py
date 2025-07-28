@@ -40,7 +40,7 @@ lora = LoRaInterface()
 
 # —— Background Workers —— #
 MESSAGE_DIR = './messages/'
-store = MessageStore(MESSAGE_DIR)
+store = MessageStore(MESSAGE_DIR + 'messages.json')
 
 @app.route('/api/messages/<source>', methods=['GET'])
 def api_messages_from_file(source):
