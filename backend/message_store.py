@@ -9,6 +9,8 @@ class MessageStore:
         # Set self_id to provided value or default to the hostname
         self.self_id = self_id or socket.gethostname()
         self._lock   = threading.Lock()
+        self._msgs   = []      # ← initialize here
+        self._load()
         # ensure file exists
         try:
             with open(self.filename, 'r') as f:
@@ -19,11 +21,9 @@ class MessageStore:
 
     def _load(self):
         try:
-            with open(STORE_FILE) as f:
+            with open(STORE_FILE, 'r') as f:
                 self._msgs = json.load(f)
-        except FileNotFoundError:
-            self._msgs = []
-        except json.JSONDecodeError:
+        except (FileNotFoundError, json.JSONDecodeError):
             self._msgs = []
 
     def _save(self):
@@ -35,21 +35,17 @@ class MessageStore:
         msg_id = msg_id or f"{sender}-{uuid.uuid4()}"
         ts     = ts or time.time()
 
-        msg = {
-            "id":      msg_id,
-            "from":    sender,
-            "message": text,
-            "ts":      ts,
-            "origin":  origin,
-            "status":  "pending" if origin == self.self_id else "received"
-        }
+        msg = { "id": msg_id, "from": sender, "message": text,
+                "ts": ts, "origin": origin,
+                "status": "pending" if origin == self.self_id else "received" }
 
-        with self._lock:
+        with self.lock:
             if not any(m["id"] == msg_id for m in self._msgs):
                 self._msgs.append(msg)
                 self._save()
 
         return msg
+
     def all(self) -> list:
         with self._lock, open(self.filename, "r", encoding="utf-8") as f:
             return json.load(f)
