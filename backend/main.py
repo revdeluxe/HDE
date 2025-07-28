@@ -357,7 +357,7 @@ def api_sync():
 def lora_worker():
     while True:
         # 1) Quick RX pass
-        seq, raw, meta = lora.listen_once(timeout=0.1)
+        seq, raw, meta = lora.listen_once()
         if raw:
             score = crc_score(raw)
             if score >= 50:
