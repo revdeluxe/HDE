@@ -15,6 +15,12 @@ GPIO.setwarnings(False)
 # ensure we only do setmode()/setup() once
 _board_setup_done = False
 
+def safe_setup(pin, mode, **kwargs):
+        # Only allow integer pins
+        if not isinstance(pin, int):
+            raise TypeError(f"Pin must be int, got {pin!r}")
+        GPIO.setup(pin, mode, **kwargs)
+
 class BOARD:
     """Raspberry Pi BCM pin mapping + safe setup for SX1278x"""
 
@@ -27,57 +33,32 @@ class BOARD:
     spi = None
 
     @staticmethod
-    def setup():
-        global _board_setup_done
-
-        if SKIP_HW:
-            print(f"[BOARD] setup skipped (SKIP_HW={SKIP_HW})")
-            return
-        if _board_setup_done:
-            return
-
+    def setup(cls):
+        # 1) Set numbering mode once
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
+
+        # 2) Configure pins
+        safe_setup(cls.RESET, GPIO.OUT, initial=GPIO.HIGH)
+        safe_setup(cls.DIO0,  GPIO.IN)
+        safe_setup(cls.DIO1,  GPIO.IN)
+
+        # 3) Pulse reset low→high
+        GPIO.output(cls.RESET, GPIO.LOW)
+        GPIO.output(cls.RESET, GPIO.HIGH)
+
+    @staticmethod
+    def teardown():
+        """Release all GPIO & SPI on shutdown."""
         try:
             GPIO.cleanup()
-        except:
+        except Exception:
             pass
-
-        def safe_setup(pin, direction, **kwargs):
+        if BOARD.spi:
             try:
-                GPIO.setup(pin, direction, **kwargs)
-            except Exception as e:
-                print(f"[WARN] GPIO.setup(pin={pin}) failed: {e}")
-
-        # 1) NSS / CS for SPI  
-        safe_setup(BOARD, GPIO.OUT, initial=GPIO.HIGH)
-
-        # 2) RESET: start released (HIGH), then pulse LOW→HIGH
-        safe_setup(BOARD.RESET, GPIO.OUT, initial=GPIO.HIGH)
-        GPIO.output(BOARD.RESET, GPIO.LOW)
-        time.sleep(0.01)                # 10 ms reset pulse
-        GPIO.output(BOARD.RESET, GPIO.HIGH)
-        time.sleep(0.01)                # 10 ms for internal boot
-
-        # 3) DIO0 / DIO1 interrupts
-        safe_setup(BOARD.DIO0, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        safe_setup(BOARD.DIO1, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-
-        _board_setup_done = True
-        print("[BOARD] hardware setup complete")
-
-        @staticmethod
-        def teardown():
-            """Release all GPIO & SPI on shutdown."""
-            try:
-                GPIO.cleanup()
+                BOARD.spi.close()
             except Exception:
                 pass
-            if BOARD.spi:
-                try:
-                    BOARD.spi.close()
-                except Exception:
-                    pass
 
     @staticmethod
     def SpiDev(spi_bus=0, spi_cs=0):
