@@ -5,6 +5,7 @@ STORE_FILE = 'messages.json'
 
 class MessageStore:
     def __init__(self, filename, self_id=None):
+        self.lock = Lock()
         self.filename = filename
         # Set self_id to provided value or default to the hostname
         self.self_id = self_id or socket.gethostname()
