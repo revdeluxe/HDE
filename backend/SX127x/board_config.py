@@ -34,16 +34,15 @@ class BOARD:
 
     @staticmethod
     def setup(cls):
-        # 1) Set numbering mode once
         GPIO.setmode(GPIO.BCM)
         GPIO.setwarnings(False)
 
-        # 2) Configure pins
+        # now cls.RESET, cls.DIO0, etc. are valid
         safe_setup(cls.RESET, GPIO.OUT, initial=GPIO.HIGH)
         safe_setup(cls.DIO0,  GPIO.IN)
         safe_setup(cls.DIO1,  GPIO.IN)
+        safe_setup(cls.CS,    GPIO.OUT, initial=GPIO.HIGH)
 
-        # 3) Pulse reset low→high
         GPIO.output(cls.RESET, GPIO.LOW)
         GPIO.output(cls.RESET, GPIO.HIGH)
 
