@@ -6,10 +6,6 @@ from SX127x.board_config import BOARD
 from SX127x.LoRa import LoRa, MODE
 from utils import encode_message, decode_message, encode_chunks
 
-latest_status = {}
-latest_flags  = {}
-STATUS_LOCK   = threading.Lock()
-
 CHUNK_SIZE = 240
 def chunk_payload(payload: bytes, size: int = CHUNK_SIZE) -> list[bytes]:
     """
@@ -193,14 +189,4 @@ class LoRaInterface(LoRa):
             "rssi": self.get_rssi(),
             "snr": self.get_snr(),
         }
-
-    while True:
-        with STATUS_LOCK:
-            latest_status.clear()
-            latest_flags.clear()
-            latest_status.update(self.get_status())
-            latest_flags.update(self.get_irq_flags())
-
-        
-        time.sleep(0.01)
 
