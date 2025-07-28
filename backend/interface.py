@@ -58,7 +58,7 @@ class LoRaInterface(LoRa):
             time.sleep(0.05)
             super().rx_chain_calibration(frequency)
             # return to sleep after calibration
-            self.set_mode(MODE.SLEEP)
+            self.set_mode(MODE.STDBY)
             time.sleep(0.05)
 
         # 4) Set RF parameters
