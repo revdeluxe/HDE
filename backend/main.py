@@ -299,27 +299,7 @@ def api_scan():
         time.sleep(1)
     return jsonify(samples), 200
 
-@app.route('/api/status', methods=['GET'])
-def api_status():
-    try:
-        with STATUS_LOCK:
-            status = dict(latest_status)
-            flags  = dict(latest_flags)
 
-        busy_tx  = (tx_queue.qsize() > 0 or flags.get("tx_done") == 0)
-        valid_rx = flags.get("valid_header") or flags.get("rx_done")
-        server_st = "receiving" if valid_rx else socket.gethostname()
-        return jsonify({
-            "rx_mode":        status.get("rx_mode_active", False),
-            "tx_queue_depth": tx_queue.qsize(),
-            "rssi":           status.get("rssi"),
-            "snr":            status.get("snr"),
-            "busy":           busy_tx,
-            "server_state":   server_st
-        }), 200
-    except Exception as e:
-        app.logger.error("Error in /api/status", exc_info=True)
-        return jsonify(error=str(e)), 500
 
 @app.route('/api/broadcast', methods=['POST'])
 def api_broadcast():
@@ -376,7 +356,36 @@ def api_sync():
             "failed_count":  sum(1 for r in results if r["status"]=="failed")
         }), 200
 
+# LOOP WORKER FOR EVERYTHING SO DON'T DEFINE WHILE LOOP ANYWHERE JUST ADD IT HERE
+@app.route('/api/status', methods=['GET'])
+def api_status():
+    try:
+        remote_map = lora.request_remote_crc_map()
+        local_map  = store.get_crc_map()
+        with STATUS_LOCK:
+            status = dict(latest_status)
+            flags  = dict(latest_flags)
 
+        busy_tx  = (tx_queue.qsize() > 0 or flags.get("tx_done") == 0)
+        valid_rx = flags.get("valid_header") or flags.get("rx_done")
+        server_st = "receiving" if valid_rx else socket.gethostname()
+        for mid, local_crc in local_map.items():
+                if remote_map.get(mid) != local_crc:
+                    tx_queue.put(store.messages[mid])
+                    logging.info(f"Scheduling sync of msg {mid}")
+        return jsonify({
+            "rx_mode":        status.get("rx_mode_active", False),
+            "tx_queue_depth": tx_queue.qsize(),
+            "rssi":           status.get("rssi"),
+            "snr":            status.get("snr"),
+            "busy":           busy_tx,
+            "server_state":   server_st
+        }), 200
+    except Exception as e:
+        logging.error(f"CRC-sync failed: {e}")
+        app.logger.error("Error in /api/status", exc_info=True)
+        return jsonify(error=str(e)), 500
+    
 if __name__ == '__main__':
     logging.info("Starting LoRa Flask API on port 5000")
     app.run(host='0.0.0.0', port=5000, debug=True)

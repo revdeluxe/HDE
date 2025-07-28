@@ -10,7 +10,9 @@ class MessageStore:
         # Set self_id to provided value or default to the hostname
         self.self_id = self_id or socket.gethostname()
         self._lock   = threading.Lock()
-        self._msgs   = []      # ← initialize here
+        self._msgs  = []
+        self.path   = os.path.abspath(filename)
+        self.messages: Dict[int, Dict[str, Any]] = {}
         self._load()
         # ensure file exists
         try:
@@ -20,32 +22,47 @@ class MessageStore:
             with open(self.filename, 'w') as f:
                 json.dump([], f)
 
-    def _load(self):
+    def _load(self) -> None:
         try:
-            with open(STORE_FILE, 'r') as f:
-                self._msgs = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            self._msgs = []
+            with open(self.path, 'r') as f:
+                data: List[Dict[str, Any]] = json.load(f)
+            for msg in data:
+                self.messages[msg['id']] = msg
+        except FileNotFoundError:
+            self.messages = {}
 
-    def _save(self):
-        with open(STORE_FILE, 'w') as f:
-            json.dump(self._msgs, f, indent=2)
+    def _save(self) -> None:
+        with open(self.path, 'w') as f:
+            json.dump(list(self.messages.values()), f, indent=2)
 
-    def add(self, sender, text, msg_id=None, ts=None, origin=None):
-        origin = origin or self.self_id
-        msg_id = msg_id or f"{sender}-{uuid.uuid4()}"
-        ts     = ts or time.time()
+    def compute_crc(self, msg: Dict[str, Any]) -> int:
+        # Exclude the crc field itself when computing
+        payload = {
+            k: msg[k] for k in sorted(msg)
+            if k not in ('crc',)
+        }
+        raw = json.dumps(payload, separators=(',',':')).encode()
+        return zlib.crc32(raw) & 0xFFFFFFFF
 
-        msg = { "id": msg_id, "from": sender, "message": text,
-                "ts": ts, "origin": origin,
-                "status": "pending" if origin == self.self_id else "received" }
-
-        with self.lock:
-            if not any(m["id"] == msg_id for m in self._msgs):
-                self._msgs.append(msg)
-                self._save()
-
+    def add(self, sender: str, text: str, ts: float, origin: str) -> Dict[str, Any]:
+        new_id = max(self.messages.keys(), default=0) + 1
+        msg = {
+            'id':      new_id,
+            'from':    sender,
+            'message': text,
+            'timestamp': ts,
+            'origin':  origin,
+        }
+        msg['crc'] = self.compute_crc(msg)
+        self.messages[new_id] = msg
+        self._save()
         return msg
+
+    def get_all(self) -> List[Dict[str, Any]]:
+        return list(self.messages.values())
+
+    def get_crc_map(self) -> Dict[int, int]:
+        return {mid: m['crc'] for mid, m in self.messages.items()}
 
     def all(self) -> list:
         with self._lock, open(self.filename, "r", encoding="utf-8") as f:

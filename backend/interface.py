@@ -1,6 +1,6 @@
 # interface.py
 
-import time, threading
+import time, threading, json, struct, zlib
 from typing import Optional, Tuple, Dict, Any
 from SX127x.board_config import BOARD
 from SX127x.LoRa import LoRa, MODE
@@ -189,4 +189,22 @@ class LoRaInterface(LoRa):
             "rssi": self.get_rssi(),
             "snr": self.get_snr(),
         }
+    
+    def request_remote_crc_map(self) -> Dict[int, int]:
+        """
+        Send a special “CRC-sync” packet, then listen for
+        a response containing {id:crc, …}.
+        """
+        self.switch_to_tx(b'CRC_REQUEST')
+        # wait, then read and decode JSON response
+        data = self.switch_to_rx(timeout=2)  # returns bytes
+        return json.loads(data.decode())
+
+    def send_crc_map(self, crc_map: Dict[int, int]) -> None:
+        """
+        On the slave side: when you receive a CRC_REQUEST,
+        reply with your local CRC map.
+        """
+        payload = json.dumps(crc_map).encode()
+        self.switch_to_tx(payload)
 
