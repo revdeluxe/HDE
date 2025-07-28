@@ -189,20 +189,14 @@ class LoRaInterface(LoRa):
             "rssi": self.get_rssi(),
             "snr": self.get_snr(),
         }
-    
-    def radio_worker():
-    # … your existing init …
 
     while True:
-        # Snapshot LoRa status
         with STATUS_LOCK:
             latest_status.clear()
             latest_flags.clear()
             latest_status.update(radio.get_status())
             latest_flags.update(radio.get_irq_flags())
 
-        # — existing TX drain & RX handling here —
-        # (no other changes to those blocks)
-
+        
         time.sleep(0.01)
 
