@@ -294,23 +294,25 @@ def api_scan():
 
 @app.route('/api/status', methods=['GET'])
 def api_status():
-    with STATUS_LOCK:
-        status = dict(latest_status)
-        flags  = dict(latest_flags)
+    try:
+        with STATUS_LOCK:
+            status = dict(latest_status)
+            flags  = dict(latest_flags)
 
-    busy_tx  = (tx_queue.qsize() > 0 or flags.get("tx_done") == 0)
-    valid_rx = flags.get("valid_header") or flags.get("rx_done")
-    server_st = "receiving" if valid_rx else socket.gethostname()
-
-    return jsonify({
-        "rx_mode":        status.get("rx_mode_active", False),
-        "tx_queue_depth": tx_queue.qsize(),
-        "rssi":           status.get("rssi"),
-        "snr":            status.get("snr"),
-        "busy":           busy_tx,
-        "server_state":   server_st
-    }), 200
-
+        busy_tx  = (tx_queue.qsize() > 0 or flags.get("tx_done") == 0)
+        valid_rx = flags.get("valid_header") or flags.get("rx_done")
+        server_st = "receiving" if valid_rx else socket.gethostname()
+        return jsonify({
+            "rx_mode":        status.get("rx_mode_active", False),
+            "tx_queue_depth": tx_queue.qsize(),
+            "rssi":           status.get("rssi"),
+            "snr":            status.get("snr"),
+            "busy":           busy_tx,
+            "server_state":   server_st
+        }), 200
+    except Exception as e:
+        app.logger.error("Error in /api/status", exc_info=True)
+        return jsonify(error=str(e)), 500
 
 @app.route('/api/broadcast', methods=['POST'])
 def api_broadcast():

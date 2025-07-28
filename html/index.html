@@ -14,9 +14,12 @@
           </div>
           <div class="status-bar" style="display: flex; justify-content: center; gap: 20px;"></div>
               <span title="Your current username">👤 <strong id="usernameField">Anonymous</strong></span>
-              <span title="Current connection status with the server">🔗 Server Status: <strong id="serverState">...</strong></span>
-              <span title="Reception mode status">📡 RX Mode: <strong id="rxMode">?</strong></span>
-              <span title="Number of messages in the queue">📥 Queue Depth: <strong id="queueDepth">?</strong></span>
+              <span><div id="status-busy"></div></span>
+              <span><div id="status-rssi"></div></span>
+              <span><div id="status-snr"></div></span>
+              <span><div id="status-rx_mode"></div></span>
+              <span><div id="status-server_state"></div></span>
+              <span><div id="status-tx_queue_depth"></div></span>
           </div>
       </header>
     <main id="app">
