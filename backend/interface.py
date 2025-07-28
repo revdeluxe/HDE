@@ -77,7 +77,7 @@ class LoRaInterface(LoRa):
         Check the radio’s IRQ flags. Returns True if any “received” or
         other flags are still set that need clearing.
         """
-        irq = self.radio.get_irq_flags()  
+        irq = self.get_irq_flags()  
         # Replace .rx_done with whatever your driver uses
         return bool(irq.rx_done or irq.rx_timeout or irq.crc_error)
 
