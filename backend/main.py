@@ -11,7 +11,7 @@ from threading import Lock
 from flask import Flask, request, jsonify, abort
 from werkzeug.utils import secure_filename
 from message_store import MessageStore
-from interface import LoRaInterface,
+from interface import LoRaInterface
 from utils import encode_message, decode_message, crc_score, chunk_payload
 from threading import Lock
 
