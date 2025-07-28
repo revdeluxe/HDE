@@ -46,19 +46,19 @@ class LoRaInterface(LoRa):
         BOARD.SpiDev(spi_bus=spi_bus, spi_cs=spi_cs)
 
         # 2) Base LoRa __init__ without auto-calibration
-        super().__init__(verbose=verbose, do_calibration=False)
+        super().__init__(verbose=verbose, do_calibration=True)
 
         # 3) Enter SLEEP, then optionally calibrate RX chain
         self.set_mode(MODE.SLEEP)
         time.sleep(0.05)
 
         if do_calibration:
-            # ensure sleep mode so set_freq() calls inside calibration don't assert
-            self.set_mode(MODE.SLEEP)
-            time.sleep(0.05)
-            super().rx_chain_calibration(True)
-            # return to standby after calibration
+            # force standby so inner set_freq() calls never assert
             self.set_mode(MODE.STDBY)
+            time.sleep(0.05)
+            super().rx_chain_calibration(self.calibration_freq())
+            # return to sleep
+            self.set_mode(MODE.SLEEP)
             time.sleep(0.05)
 
         # 4) Set RF parameters
