@@ -46,7 +46,7 @@ class LoRaInterface(LoRa):
         BOARD.SpiDev(spi_bus=spi_bus, spi_cs=spi_cs)
 
         # 2) Base LoRa __init__ without auto-calibration
-        super().__init__(verbose=verbose, do_calibration=True)
+        super().__init__(verbose=verbose, do_calibration=False)
 
         # 3) Enter SLEEP, then optionally calibrate RX chain
         self.set_mode(MODE.SLEEP)
