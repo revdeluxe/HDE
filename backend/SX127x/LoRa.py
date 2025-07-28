@@ -830,7 +830,7 @@ class LoRa(object):
         """
         return 0x87 if pa_dac else 0x84
 
-    def rx_chain_calibration(self, freq=868.):
+    def rx_chain_calibration(self, freq):
         """ Run the image calibration (see Semtech documentation section 4.2.3.8)
         :param freq: Frequency for the HF calibration
         :return: None

@@ -53,13 +53,13 @@ class LoRaInterface(LoRa):
         time.sleep(0.05)
 
         if do_calibration:
-            # force standby so inner set_freq() calls never assert
             self.set_mode(MODE.STDBY)
             time.sleep(0.05)
-            super().rx_chain_calibration(self.calibration_freq())
-            # return to sleep
+            super().rx_chain_calibration(frequency)
+            super().rx_is_good()
             self.set_mode(MODE.SLEEP)
             time.sleep(0.05)
+            
 
         # 4) Set RF parameters
         self.set_freq(frequency)
