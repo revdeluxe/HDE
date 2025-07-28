@@ -71,6 +71,15 @@ class LoRaInterface(LoRa):
         Default is 433 MHz, but can be overridden.
         """
         return 433e6
+    
+    def received_flag(self) -> bool:
+        """
+        Check the radio’s IRQ flags. Returns True if any “received” or
+        other flags are still set that need clearing.
+        """
+        irq = self.radio.get_irq_flags()  
+        # Replace .rx_done with whatever your driver uses
+        return bool(irq.rx_done or irq.rx_timeout or irq.crc_error)
 
     def set_freq(self, freq_hz: float) -> None:
         """
@@ -97,6 +106,12 @@ class LoRaInterface(LoRa):
         Load a payload and fire off a TX.
         Blocks until TxDone.
         """
+        timeout = time.time() + 1.0
+        while time.time() < timeout and self.received_flag():
+            time.sleep(0.01)
+
+        # now safe to go TX
+        self.clear_irq_flags()
         self.set_mode(MODE.STDBY)
         self.write_payload(list(payload))
         self.set_mode(MODE.TX)
