@@ -386,20 +386,27 @@ def lora_worker():
         time.sleep(0.05)
 
 
-@app.route('/api/status')
+@app.route('/api/status', methods=['GET'])
 def api_status():
     with STATUS_LOCK:
-        stat = dict(latest_status)
-        flags = dict(latest_flags)
+        stat  = latest_status.copy()
+        flags = latest_flags.copy()
 
-    return jsonify({
-      "rx_mode":        str(stat["rx_mode_active"]),
-      "rssi":           str(stat["rssi"]),
-      "snr":            str(stat["snr"]),
-      "tx_queue_depth": str(tx_queue.qsize()),
-      "busy":           any(q for q in flags.values()),
-      "server_state":   "receiving" if flags.get("rx_done") else socket.gethostname()
-    })
+    response = {
+        "rx_mode":        stat.get("rx_mode_active", False),
+        "rssi":           stat.get("rssi"),                # stays None until set
+        "snr":            stat.get("snr"),
+        "tx_queue_depth": tx_queue.qsize(),
+        "busy":           (tx_queue.qsize() > 0) 
+                          or not flags.get("tx_done", True),
+        "server_state":   "receiving" if flags.get("rx_done") 
+                          else socket.gethostname()
+    }
+
+    # (Optional) Debug what you’re truly returning
+    logging.debug(f"/api/status → {response}")
+
+    return jsonify(response), 200
 
     
 if __name__ == '__main__':
