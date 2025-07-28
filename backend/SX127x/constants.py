@@ -22,12 +22,17 @@
 
 
 def add_lookup(cls):
-    """ A decorator that adds a lookup dictionary to the class.
-        The lookup dictionary maps the codes back to the names. This is used for pretty-printing. """
     varnames = filter(str.isupper, cls.__dict__.keys())
-    lookup = dict(map(lambda varname: (cls.__dict__.get(varname, None), varname), varnames))
+    lookup = {}
+    for varname in varnames:
+        val = cls.__dict__.get(varname, None)
+        if val is not None:
+            lookup[val] = varname
+            # Also add low nibble fallback, in case mode & 0x07 used
+            lookup[val & 0x07] = varname + " (masked)"
     setattr(cls, 'lookup', lookup)
     return cls
+
 
 
 @add_lookup

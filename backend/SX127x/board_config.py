@@ -5,6 +5,7 @@ import time
 import spidev
 import RPi.GPIO as GPIO
 
+
 # If SKIP_HW=1 or true in env, we won't touch any GPIO
 SKIP_HW = os.getenv('SKIP_HW', '').lower() in ('1', 'true')
 
@@ -28,6 +29,7 @@ class BOARD:
     RESET = 17
     DIO0  = 22
     DIO1  = 23  # only if you wire it
+
 
     # holds the spidev handle
     spi = None
