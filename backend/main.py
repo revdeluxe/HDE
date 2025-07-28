@@ -28,7 +28,7 @@ sync_queue    = []
 sync_lock     = Lock()
 synced_messages = []
 last_sent_msg = None
-store = MessageStore()
+
 latest_status = {}
 latest_flags  = {}
 STATUS_LOCK   = threading.Lock()
@@ -40,6 +40,7 @@ lora = LoRaInterface()
 
 # —— Background Workers —— #
 MESSAGE_DIR = './messages/'
+store = MessageStore(MESSAGE_DIR)
 
 @app.route('/api/messages/<source>', methods=['GET'])
 def api_messages_from_file(source):
