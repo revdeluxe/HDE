@@ -3,23 +3,26 @@ from SX127x.board_config import BOARD
 import time
 
 BOARD.setup(cls=BOARD)
-BOARD.SpiDev(spi_bus=0)
+BOARD.SpiDev(spi_bus=0, spi_cs=0)  # Make sure CS is wired to CE0 (GPIO 8)
 lora = LoRa(verbose=False, do_calibration=True)
 
 lora.set_mode(MODE.STDBY)
 lora.set_freq(433e6)
 lora.set_spreading_factor(7)
 lora.set_pa_config(pa_select=1, max_power=7, output_power=15)
+lora.clear_irq_flags()
 lora.set_mode(MODE.RXCONT)
 
 start = time.time()
-while time.time()-start<5:
+while time.time() - start < 5:
     flags = lora.get_irq_flags()
     if flags.get("rx_done"):
-        raw = bytes(lora.read_payload(nocheck=True))
-        print("Got raw:", raw)
+        raw = lora.read_payload(nocheck=True)
+        print("Got raw:", bytes(raw))
+        print("RSSI:", lora.get_rssi_value())
+        print("SNR:", lora.get_pkt_snr_value())
+        lora.clear_irq_flags()
         break
     time.sleep(0.01)
 else:
     print("No RX")
-
