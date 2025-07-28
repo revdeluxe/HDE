@@ -39,7 +39,7 @@ class LoRaInterface(LoRa):
         output_power: int = 15,
         timeout: float = 5.0,
         verbose: bool = False,
-        do_calibration: bool = True
+        do_calibration: bool = False
     ):
         # 1) Low-level hardware & SPI init
         BOARD.setup()

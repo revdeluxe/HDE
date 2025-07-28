@@ -27,10 +27,12 @@ sync_queue    = []
 sync_lock     = Lock()
 synced_messages = []
 last_sent_msg = None
+incoming_buffer = []  # Define incoming_buffer as a global list
 
 latest_status = {}
 latest_flags  = {}
 STATUS_LOCK   = threading.Lock()
+RECEIVED_LOCK = threading.Lock()
 
 # —— Background Workers —— #
 MESSAGE_DIR = './messages/'
@@ -350,36 +352,57 @@ def api_sync():
             "failed_count":  sum(1 for r in results if r["status"]=="failed")
         }), 200
 
-# LOOP WORKER FOR EVERYTHING SO DON'T DEFINE WHILE LOOP ANYWHERE JUST ADD IT HERE
-@app.route('/api/status', methods=['GET'])
-def api_status():
-    try:
-        remote_map = lora.request_remote_crc_map()
-        local_map  = store.get_crc_map()
-        with STATUS_LOCK:
-            status = dict(latest_status)
-            flags  = dict(latest_flags)
+# main.py (background thread)
 
-        busy_tx  = (tx_queue.qsize() > 0 or flags.get("tx_done") == 0)
-        valid_rx = flags.get("valid_header") or flags.get("rx_done")
-        server_st = "receiving" if valid_rx else socket.gethostname()
-        for mid, local_crc in local_map.items():
-                if remote_map.get(mid) != local_crc:
+def lora_worker():
+    while True:
+        # 1) Quick RX pass
+        seq, raw, meta = lora.listen_once(timeout=0.1)
+        if raw:
+            score = crc_score(raw)
+            if score >= 50:
+                decoded = decode_message(raw)
+                store.add(**decoded)               # persist
+                with RECEIVED_LOCK:
+                    incoming_buffer.append(decoded)
+            else:
+                logging.warning("Bad CRC, dropping")
+
+        # 2) Periodic CRC‐sync (every 60 s)
+        if time.time() - last_crc_sync > 60:
+            remote_map = lora.request_remote_crc_map()
+            local_map  = store.get_crc_map()
+            for mid, crc in local_map.items():
+                if remote_map.get(mid) != crc:
                     tx_queue.put(store.messages[mid])
-                    logging.info(f"Scheduling sync of msg {mid}")
-        return jsonify({
-            "rx_mode":        status.get("rx_mode_active", False),
-            "tx_queue_depth": tx_queue.qsize(),
-            "rssi":           status.get("rssi"),
-            "snr":            status.get("snr"),
-            "busy":           busy_tx,
-            "server_state":   server_st
-        }), 200
-    except Exception as e:
-        logging.error(f"CRC-sync failed: {e}")
-        app.logger.error("Error in /api/status", exc_info=True)
-        return jsonify(error=str(e)), 500
+            last_crc_sync = time.time()
+
+        # 3) Update status snapshot
+        with STATUS_LOCK:
+            latest_status.update(lora.get_status())
+            latest_flags .update(lora.get_irq_flags())
+
+        # small sleep to avoid CPU spin
+        time.sleep(0.05)
+
+
+@app.route('/api/status')
+def api_status():
+    with STATUS_LOCK:
+        stat = dict(latest_status)
+        flags = dict(latest_flags)
+
+    return jsonify({
+      "rx_mode":        stat["rx_mode_active"],
+      "rssi":           stat["rssi"],
+      "snr":            stat["snr"],
+      "tx_queue_depth": tx_queue.qsize(),
+      "busy":           any(q for q in flags.values()),
+      "server_state":   "receiving" if flags.get("rx_done") else socket.gethostname()
+    })
+
     
 if __name__ == '__main__':
+    threading.Thread(target=lora_worker, daemon=True).start()
     logging.info("Starting LoRa Flask API on port 5000")
     app.run(host='0.0.0.0', port=5000, debug=True)
