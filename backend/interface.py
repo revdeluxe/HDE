@@ -53,8 +53,6 @@ class LoRaInterface(LoRa):
         time.sleep(0.05)
 
         if do_calibration:
-            self.set_mode(MODE.STDBY)
-            time.sleep(0.05)
             super().rx_chain_calibration(frequency)
             super().rx_is_good()
             self.set_mode(MODE.SLEEP)
