@@ -153,27 +153,28 @@ def boot_beacon():
 @app.route("/api/send", methods=["POST"])
 def api_send():
     global last_sent_msg
-
     data = request.get_json() or {}
-    if "from" not in data or "message" not in data:
-        return jsonify({"error": "Missing 'from' or 'message'"}), 400
 
-    # 1. Persist locally as "pending"
+    if "from" not in data or "message" not in data:
+        return jsonify(error="Missing 'from' or 'message'"), 400
+
+    # 1) Persist locally as "pending"
     msg = store.add(
-        from_=data["from"],
-        message=data["message"],
-        timestamp=data.get("timestamp"),
+        sender=data["from"],
+        text=data["message"],
+        ts=data.get("timestamp"),
+        origin=socket.gethostname()
     )
     last_sent_msg = msg
 
-    # 2. Encode, chunk, and enqueue for TX
+    # 2) Encode, chunk, enqueue…
     payload = encode_message(msg)
     for chunk in chunk_payload(payload):
         tx_queue.put(chunk)
 
     logging.info(f"Queued {len(payload)} bytes in {tx_queue.qsize()} chunks")
-    return jsonify({"status": "queued", "id": msg["id"], "bytes": len(payload)}), 202
-
+    # msg now has an "id" key, so this won’t KeyError
+    return jsonify(status="queued", id=msg["id"], bytes=len(payload)), 202
 
 @app.route("/api/messages/<source>", methods=["GET"])
 def api_messages_by_source(source):

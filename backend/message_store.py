@@ -30,25 +30,26 @@ class MessageStore:
         with open(STORE_FILE, 'w') as f:
             json.dump(self._msgs, f, indent=2)
 
-    def add(self, from_, message, timestamp=None, origin=None, status="pending"):
-        # Use origin or fallback to self.self_id
+    def add(self, sender, text, msg_id=None, ts=None, origin=None):
         origin = origin or self.self_id
+        msg_id = msg_id or f"{sender}-{uuid.uuid4()}"
+        ts     = ts or time.time()
 
         msg = {
-            "from":      from_,
-            "message":   message,
-            "timestamp": timestamp,
-            "origin":    origin,
-            "status":    status
+            "id":      msg_id,
+            "from":    sender,
+            "message": text,
+            "ts":      ts,
+            "origin":  origin,
+            "status":  "pending" if origin == self.self_id else "received"
         }
-        with self._lock:
-            with open(self.filename, 'r+') as f:
-                data = json.load(f)
-                data.append(msg)
-                f.seek(0)
-                json.dump(data, f, indent=2)
-        return msg
 
+        with self._lock:
+            if not any(m["id"] == msg_id for m in self._msgs):
+                self._msgs.append(msg)
+                self._save()
+
+        return msg
     def all(self) -> list:
         with self._lock, open(self.filename, "r", encoding="utf-8") as f:
             return json.load(f)
