@@ -12,7 +12,12 @@ PROTOCOL_VERSION = 1
 #   I        = 4-byte timestamp
 HEADER_FMT = ">B B{}s B{}s I"
 
-def encode_message(msg):
+def encode_message(msg: dict) -> bytes:
+    """
+    Build: [version][from_len][from_bytes][msg_len][msg_bytes][ts(4)]
+           + CRC32(payload)
+    """
+    # parse ISO timestamp or fallback to now
     try:
         ts = int(time.mktime(
             time.strptime(msg['timestamp'], "%Y-%m-%dT%H:%M:%S.%f")
@@ -22,7 +27,8 @@ def encode_message(msg):
 
     from_bytes    = msg['from'].encode('utf-8')
     message_bytes = msg['message'].encode('utf-8')
-    header = HEADER_FMT.format(len(from_bytes), len(message_bytes))
+    header        = HEADER_FMT.format(len(from_bytes), len(message_bytes))
+
     payload = struct.pack(
         header,
         PROTOCOL_VERSION,
@@ -30,45 +36,50 @@ def encode_message(msg):
         len(message_bytes), message_bytes,
         ts
     )
+
     crc = struct.pack(">I", zlib.crc32(payload))
     return payload + crc
 
-def encode_chunks(payload, chunk_size=240):
+
+def encode_chunks(payload: bytes, chunk_size: int = 240) -> list[bytes]:
+    """
+    Break payload into chunks of `chunk_size`,
+    prefix each with a 1-byte sequence number.
+    """
     chunks = []
     total = len(payload)
     seq_num = 0
 
     for offset in range(0, total, chunk_size):
         chunk = payload[offset:offset + chunk_size]
-        # Prefix with sequence ID
         prefixed = struct.pack(">B", seq_num % 256) + chunk
         chunks.append(prefixed)
         seq_num += 1
 
     return chunks
 
-def decode_message(data):
+
+def decode_message(data: bytes | list[int]) -> dict:
+    """
+    Inverse of encode_message: verify CRC, parse header.
+    Returns dict or {"error": "..."} on failure.
+    """
     if isinstance(data, list):
         data = bytes(data)
 
     try:
         version = data[0]
         if version != PROTOCOL_VERSION:
-            raise ValueError(f"Unsupported protocol version {version}")
+            raise ValueError(f"Bad version {version}")
 
         idx = 1
-        from_len = data[idx]
-        idx += 1
-        from_str = data[idx:idx + from_len].decode('utf-8')
-        idx += from_len
+        from_len = data[idx]; idx += 1
+        from_str = data[idx:idx + from_len].decode('utf-8'); idx += from_len
 
-        msg_len = data[idx]
-        idx += 1
-        message = data[idx:idx + msg_len].decode('utf-8')
-        idx += msg_len
+        msg_len = data[idx]; idx += 1
+        message = data[idx:idx + msg_len].decode('utf-8'); idx += msg_len
 
-        ts = struct.unpack(">I", data[idx:idx + 4])[0]
-        idx += 4
+        ts = struct.unpack(">I", data[idx:idx + 4])[0]; idx += 4
 
         recv_crc = struct.unpack(">I", data[idx:idx + 4])[0]
         calc_crc = zlib.crc32(data[:idx])

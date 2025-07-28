@@ -1,13 +1,16 @@
-import json, time, uuid, socket
+import os, json, time, uuid, socket
 from threading import Lock
 
 STORE_FILE = 'messages.json'
 
 class MessageStore:
-    def __init__(self):
-        self.lock   = Lock()
-        self.self_id = socket.gethostname()
-        self._load()
+    def __init__(self, path: str):
+        self.path = path
+        self.lock = Lock()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if not os.path.isfile(path):
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump([], f)
 
     def _load(self):
         try:

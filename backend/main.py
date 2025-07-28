@@ -29,6 +29,9 @@ sync_lock     = Lock()
 synced_messages = []
 last_sent_msg = None
 store = MessageStore()
+latest_status = {}
+latest_flags  = {}
+STATUS_LOCK   = threading.Lock()
 
 # —— Radio Setup —— #
 # BOARD.setup() and BOARD.SpiDev() live inside interface.radio_init()
@@ -290,20 +293,23 @@ def api_scan():
 
 @app.route('/api/status', methods=['GET'])
 def api_status():
-    status     = lora.get_status()
-    flags      = lora.get_irq_flags()
-    busy_tx    = (tx_queue.qsize() > 0 or flags.get("tx_done")==0)
-    valid_rx   = flags.get("valid_header") or flags.get("rx_done")
-    server_st  = socket.gethostname() if not valid_rx else "receiving"
+    with STATUS_LOCK:
+        status = dict(latest_status)
+        flags  = dict(latest_flags)
+
+    busy_tx  = (tx_queue.qsize() > 0 or flags.get("tx_done") == 0)
+    valid_rx = flags.get("valid_header") or flags.get("rx_done")
+    server_st = "receiving" if valid_rx else socket.gethostname()
 
     return jsonify({
-        "rx_mode":       status["rx_mode_active"],
+        "rx_mode":        status.get("rx_mode_active", False),
         "tx_queue_depth": tx_queue.qsize(),
-        "rssi":          status["rssi"],
-        "snr":           status["snr"],
-        "busy":          busy_tx,
-        "server_state":  server_st
+        "rssi":           status.get("rssi"),
+        "snr":            status.get("snr"),
+        "busy":           busy_tx,
+        "server_state":   server_st
     }), 200
+
 
 @app.route('/api/broadcast', methods=['POST'])
 def api_broadcast():
