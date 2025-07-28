@@ -374,7 +374,8 @@ def lora_worker():
             local_map  = store.get_crc_map()
             for mid, crc in local_map.items():
                 if remote_map.get(mid) != crc:
-                    tx_queue.put(store.messages[mid])
+                    for chunk in chunk_payload(encode_message(store.messages[mid])):
+                        tx_queue.put(chunk)
             last_crc_sync = time.time()
 
         # 3) Update status snapshot
