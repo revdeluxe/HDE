@@ -1,10 +1,14 @@
 # interface.py
 
-import time
+import time, threading
 from typing import Optional, Tuple, Dict, Any
 from SX127x.board_config import BOARD
 from SX127x.LoRa import LoRa, MODE
 from utils import encode_message, decode_message, encode_chunks
+
+latest_status = {}
+latest_flags  = {}
+STATUS_LOCK   = threading.Lock()
 
 CHUNK_SIZE = 240
 def chunk_payload(payload: bytes, size: int = CHUNK_SIZE) -> list[bytes]:
