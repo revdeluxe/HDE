@@ -1,4 +1,4 @@
-import os, json, time, uuid, socket, threading
+import os, json, time, uuid, socket, threading, zlib, logging
 from threading import Lock
 
 STORE_FILE = 'messages.json'
@@ -12,7 +12,7 @@ class MessageStore:
         self._lock   = threading.Lock()
         self._msgs  = []
         self.path   = os.path.abspath(filename)
-        self.messages: Dict[int, Dict[str, Any]] = {}
+        self.messages: dict[int, dict[str, any]] = {}
         self._load()
         # ensure file exists
         try:
@@ -25,7 +25,7 @@ class MessageStore:
     def _load(self) -> None:
         try:
             with open(self.path, 'r') as f:
-                data: List[Dict[str, Any]] = json.load(f)
+                data: list[dict[str, any]] = json.load(f)
             for msg in data:
                 self.messages[msg['id']] = msg
         except FileNotFoundError:
@@ -35,7 +35,7 @@ class MessageStore:
         with open(self.path, 'w') as f:
             json.dump(list(self.messages.values()), f, indent=2)
 
-    def compute_crc(self, msg: Dict[str, Any]) -> int:
+    def compute_crc(self, msg: dict[str, any]) -> int:
         # Exclude the crc field itself when computing
         payload = {
             k: msg[k] for k in sorted(msg)
@@ -44,7 +44,7 @@ class MessageStore:
         raw = json.dumps(payload, separators=(',',':')).encode()
         return zlib.crc32(raw) & 0xFFFFFFFF
 
-    def add(self, sender: str, text: str, ts: float, origin: str) -> Dict[str, Any]:
+    def add(self, sender: str, text: str, ts: float, origin: str) -> dict[str, any]:
         new_id = max(self.messages.keys(), default=0) + 1
         msg = {
             'id':      new_id,
