@@ -39,25 +39,17 @@ class LoRaInterface(LoRa):
         output_power: int = 15,
         timeout: float = 5.0,
         verbose: bool = False,
-        do_calibration: bool = True,
     ):
         # 1) Low-level hardware & SPI init
         BOARD.setup()
         BOARD.SpiDev(spi_bus=spi_bus, spi_cs=spi_cs)
 
         # 2) Base LoRa __init__ without auto-calibration
-        super().__init__(verbose=verbose, do_calibration=True)
+        super().__init__(verbose=verbose)
 
         # 3) Enter SLEEP, then optionally calibrate RX chain
         self.set_mode(MODE.SLEEP)
         time.sleep(0.05)
-
-        if do_calibration:
-            super().rx_chain_calibration(frequency)
-            super().rx_is_good()
-            self.set_mode(MODE.SLEEP)
-            time.sleep(0.05)
-            
 
         # 4) Set RF parameters
         self.set_freq(frequency)
