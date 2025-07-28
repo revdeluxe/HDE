@@ -393,10 +393,10 @@ def api_status():
         flags = dict(latest_flags)
 
     return jsonify({
-      "rx_mode":        stat["rx_mode_active"],
-      "rssi":           stat["rssi"],
-      "snr":            stat["snr"],
-      "tx_queue_depth": tx_queue.qsize(),
+      "rx_mode":        str(stat["rx_mode_active"]),
+      "rssi":           str(stat["rssi"]),
+      "snr":            str(stat["snr"]),
+      "tx_queue_depth": str(tx_queue.qsize()),
       "busy":           any(q for q in flags.values()),
       "server_state":   "receiving" if flags.get("rx_done") else socket.gethostname()
     })
