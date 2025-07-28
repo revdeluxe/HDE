@@ -56,7 +56,7 @@ class LoRaInterface(LoRa):
             # ensure sleep mode so set_freq() calls inside calibration don't assert
             self.set_mode(MODE.SLEEP)
             time.sleep(0.05)
-            super().rx_chain_calibration(frequency)
+            super().rx_chain_calibration(True)
             # return to standby after calibration
             self.set_mode(MODE.STDBY)
             time.sleep(0.05)
