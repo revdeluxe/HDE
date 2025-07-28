@@ -30,20 +30,17 @@ class BOARD:
     def setup():
         global _board_setup_done
 
-        # skip if flagged or already done
         if SKIP_HW:
             print(f"[BOARD] setup skipped (SKIP_HW={SKIP_HW})")
             return
-
         if _board_setup_done:
             return
 
         GPIO.setmode(GPIO.BCM)
-
-        # in case a previous run left pins locked
+        GPIO.setwarnings(False)
         try:
             GPIO.cleanup()
-        except Exception:
+        except:
             pass
 
         def safe_setup(pin, direction, **kwargs):
@@ -52,28 +49,35 @@ class BOARD:
             except Exception as e:
                 print(f"[WARN] GPIO.setup(pin={pin}) failed: {e}")
 
-        # RESET pin (output, start LOW)
-        safe_setup(BOARD.RESET, GPIO.OUT, initial=GPIO.LOW)
+        # 1) NSS / CS for SPI  
+        safe_setup(BOARD.CS, GPIO.OUT, initial=GPIO.HIGH)
 
-        # DIO0 and DIO1 (inputs with pulldown)
+        # 2) RESET: start released (HIGH), then pulse LOW→HIGH
+        safe_setup(BOARD.RESET, GPIO.OUT, initial=GPIO.HIGH)
+        GPIO.output(BOARD.RESET, GPIO.LOW)
+        time.sleep(0.01)                # 10 ms reset pulse
+        GPIO.output(BOARD.RESET, GPIO.HIGH)
+        time.sleep(0.01)                # 10 ms for internal boot
+
+        # 3) DIO0 / DIO1 interrupts
         safe_setup(BOARD.DIO0, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         safe_setup(BOARD.DIO1, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
         _board_setup_done = True
         print("[BOARD] hardware setup complete")
 
-    @staticmethod
-    def teardown():
-        """Release all GPIO & SPI on shutdown."""
-        try:
-            GPIO.cleanup()
-        except Exception:
-            pass
-        if BOARD.spi:
+        @staticmethod
+        def teardown():
+            """Release all GPIO & SPI on shutdown."""
             try:
-                BOARD.spi.close()
+                GPIO.cleanup()
             except Exception:
                 pass
+            if BOARD.spi:
+                try:
+                    BOARD.spi.close()
+                except Exception:
+                    pass
 
     @staticmethod
     def SpiDev(spi_bus=0, spi_cs=0):
