@@ -2,7 +2,9 @@
 from pyLoRa import configure, lora_module
 
 # Run system checks
-configure.run_syscheck()
+configure.run_checks()
+configure.check_gpio()
+configure.check_spi()
 
 # Create LoRa object
 lora = lora_module.LoRa()
