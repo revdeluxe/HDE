@@ -2,6 +2,7 @@
 
 from pyLoRa.lora_module import LoRa
 from pyLoRa.configure import run_checks, check_spi, check_gpio
+import time
 
 def configure_lora():
     """
