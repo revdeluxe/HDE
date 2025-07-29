@@ -25,7 +25,14 @@ def main():
     last_message = None
 
     while True:
-        current_message = lora.read()
+        if not lora.receive():
+            print("No message received, retrying...")
+            time.sleep(1)
+            current_message = "Null"
+            continue
+        else:
+            current_message = lora.read()
+        
         if current_message != last_message:
             print("📥 New message received:", current_message)
             last_message = current_message
