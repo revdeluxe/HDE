@@ -25,12 +25,11 @@ def main():
     last_message = None
 
     while True:
-        if lora.receive():
-            current_message = lora.get_received_message()
-            if current_message != last_message:
-                print("📥 New message received:", current_message)
-                last_message = current_message
-                break
+        current_message = lora.read()
+        if current_message != last_message:
+            print("📥 New message received:", current_message)
+            last_message = current_message
+            break
         # No else print — silence if there's no change
         time.sleep(1)
 
