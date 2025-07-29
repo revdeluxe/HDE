@@ -27,7 +27,7 @@ def main():
             if packet != last_packet:
                 print("📥 New packet received:", packet)
                 last_packet = packet
-                b
+                break
         # Optionally add a sleep to avoid CPU overload
         # time.sleep(0.5)
         time.sleep(0.1)
