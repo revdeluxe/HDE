@@ -14,16 +14,14 @@ def configure_lora():
     return True
 
 def main():
-    configure_lora()
-
     lora = LoRa()
-    lora.reset()               # Optional: HW reset using GPIO
-    lora.set_frequency(433)    # MHz
-    lora.set_tx_power(14)      # dBm
+    lora.reset()
+    lora.set_frequency(433)
+    lora.set_tx_power(14)
 
-    payload = "Test from TX"
-    print("📤 Sending:", payload)
-    lora.send(payload.encode('utf-8'))
+    data = b"Hello World"
+    print("📤 Sending:", data)
+    lora.send(data)
 
     print("✅ Message sent.")
     lora.close()
