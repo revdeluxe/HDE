@@ -20,7 +20,7 @@ lora.set_mode_rx()         # Standby/Receive/Transmit/etc.
 data = b"Hello World"
 lora.send(data)
 
-if lora.received():
+if lora.receive():
     packet = lora.read()
     print("Received:", packet)
 
