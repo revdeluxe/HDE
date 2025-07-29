@@ -7,9 +7,21 @@ from pathlib import Path
 import json
 import time
 
-from parser import parse_message, file_crc32
+from parser import Parser
 from stream import MessageStream
 
+from pyLoRa.configure import run_checks
+from pyLoRa.lora_handler import LoRaGPIOHandler
+from pyLoRa.lora_module import LoRa
+
+# Perform startup checks
+run_checks()
+
+# Initialize LoRa handler
+gpio_handler = LoRaGPIOHandler()
+gpio_handler.setup_gpio()
+
+lora = LoRa(gpio_handler)
 app = FastAPI()
 messages_dir = Path("messages")
 messages_file = messages_dir / "messages.json"
@@ -33,7 +45,7 @@ class OutgoingMessage(BaseModel):
 
 @app.post("/api/receive")
 async def receive_message(raw: RawMessage):
-    parsed = parse_message(raw.data)
+    parsed = Parser.parse_message(raw.data)
 
     if not parsed["valid"]:
         return JSONResponse(
@@ -80,6 +92,10 @@ async def send_message(payload: OutgoingMessage, username: str = Cookie(default=
     queue.append(entry)
     to_send_file.write_text(json.dumps(queue, indent=2))
 
+    # Transmit using LoRa
+    data = f"{entry['from']}:{entry['to']}:{entry['message']}".encode('utf-8')
+    lora.send(data)
+
     return {"status": "queued", "entry": entry}
 
 @app.get("/api/messages")
@@ -99,6 +115,7 @@ async def get_file_messages(source: str):
 
 @app.get("/api/messages/crc")
 async def get_crc():
+    from parser import file_crc32  # Import here to avoid circular issues
     return {
         "crc32": file_crc32(messages_file),
         "file": str(messages_file)
