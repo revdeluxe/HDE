@@ -18,27 +18,22 @@ def main():
     configure_lora()
     lora = LoRa()
     lora.reset()
-    lora.set_frequency(433)  # MHz
-    lora.set_tx_power(14)    # dBm
-
+    lora.set_frequency(433)
+    lora.set_tx_power(14)
     lora.set_mode_rx()
-    last_message = None
+
+    last_packet = None
 
     while True:
-        if not lora.receive():
-            print("No message received, retrying...")
-            time.sleep(1)
-            current_message = "Null"
-            continue
-        else:
-            current_message = lora.read()
-        
-        if current_message != last_message:
-            print("📥 New message received:", current_message)
-            last_message = current_message
-            break
-        # No else print — silence if there's no change
-        time.sleep(1)
+        if lora.receive():
+            packet = lora.read()
+            if packet != last_packet:
+                print("📥 New packet received:", packet)
+                last_packet = packet
+                break
+        # Optionally add a sleep to avoid CPU overload
+        # time.sleep(0.5)
+        time.sleep(0.1)
 
     lora.close()
 
