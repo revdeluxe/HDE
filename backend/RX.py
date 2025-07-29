@@ -16,18 +16,23 @@ def configure_lora():
 def main():
     configure_lora()
     lora = LoRa()
-    lora.reset()               # Optional: HW reset using GPIO
-    lora.set_frequency(433)    # MHz
-    lora.set_tx_power(14)      # dBm
+    lora.reset()
+    lora.set_frequency(433)  # MHz
+    lora.set_tx_power(14)    # dBm
 
-    lora.set_mode_rx()  # Set to RX mode before sending
+    lora.set_mode_rx()
+    last_message = None
+
     while True:
         if lora.receive():
-            print("📥 Message received:", lora.get_received_message())
-            break
-        else:
-            print("🔇 No message received.")
-    print("✅ Message received.")
+            current_message = lora.get_received_message()
+            if current_message != last_message:
+                print("📥 New message received:", current_message)
+                last_message = current_message
+                break
+        # No else print — silence if there's no change
+        time.sleep(1)
+
     lora.close()
 
 if __name__ == "__main__":
