@@ -58,6 +58,10 @@ def send_message(message):
         abort(400, description="Message content is required")
 
     result = send_via_lora(message)
+    auto_save_message({
+        message,
+        "timestamp": int(time.time())
+    })
     return result
 
 @app.route("/api/messages", methods=["GET"])
