@@ -14,9 +14,7 @@ from pyLoRa.lora_handler import LoRaGPIOHandler
 from pyLoRa.lora_module import LoRa
 
 # Initialize LoRa handler
-gpio_handler = LoRaGPIOHandler()
-gpio_handler.setup_gpio()
-lora = LoRa(gpio_handler)
+lora = LoRa()
 app = FastAPI()
 lora.reset()
 lora.set_frequency(433)
@@ -70,7 +68,7 @@ async def get_messages(checksum: str):
             checksum = Parser.updated_messages_checksum(messages_file)
             from_user = Parser.parse_username(checksum)
             messages = json.load(f)
-        return JSONResponse(content={"status": "200","user": from_user, "messages": messages, "checksum": checksum, "status": "sent"})
+        return JSONResponse(content={"status": "200","user": from_user, "messages": messages, "checksum": checksum, "msg_status": "sent"})
 
 @app.get("/api/checksum")
 async def get_checksum():
