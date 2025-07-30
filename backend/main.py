@@ -69,6 +69,17 @@ async def get_messages(checksum: str):
 
 @app.post("/api/receive")
 async def receive_message(request: Request):  
+    try:
+        data = await request.json()
+        sender = data.get("sender")
+        message = data.get("message")
+        if not sender or not message:
+            raise HTTPException(status_code=400, detail="Sender and message are required")
+        
+        await auto_save_message(data)
+        return JSONResponse(content={"status": "ok", "message": "Message received"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import asyncio
