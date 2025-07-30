@@ -22,8 +22,6 @@ lora.set_tx_power(14)
 messages_dir = Path("messages")
 messages_file = messages_dir / "messages.json"
 to_send_file = messages_dir / "to_send.json"
-stream = MessageStream()
-
 checksum = Parser.updated_messages_checksum(messages_file)
 from_user = Parser.parse_username(checksum)
 
@@ -64,7 +62,7 @@ def send_message(message):
 
 @app.route("/api/messages", methods=["GET"])
 def get_messages():
-    return jsonify({"data": stream.load_messages()})
+    return jsonify({"data": MessageStream.load_messages()})
 
 @app.route("/api/checksum")
 def get_checksum():
