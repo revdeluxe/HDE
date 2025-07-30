@@ -375,7 +375,7 @@ class Parser:
 
     @staticmethod
     def reassemble_chunks(sender, timestamp, batch):
-        file_path = os.path.join(SAVE_DIR, f"{sender}_{timestamp}_{batch}.json")
+        file_path = os.path.join("messages", "saves", f"{sender}_{timestamp}_{batch}.json")
         if not os.path.exists(file_path):
             return ""
 
@@ -384,6 +384,7 @@ class Parser:
 
         chunks = [data[key] for key in sorted(data, key=lambda x: int(x))]
         return "".join([chunk.split("|", 1)[-1] if "|c" in chunk else chunk for chunk in chunks])
+
 
 
     @staticmethod
