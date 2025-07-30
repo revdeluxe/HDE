@@ -1,6 +1,7 @@
 // static/app.js
 let from = document.getElementById("UsernameField").value;
 let messagesContainer = document.getElementById("messagesContainer");
+let cookie_name = getCookie("username");
 
 function messageStatus(status) {
   const statusElement = document.getElementById("status-busy");
@@ -43,7 +44,7 @@ function getCookie(name) {
 }
 
 function usernamePrompt(username) {
-  let name = getCookie("username");
+  let name = getCookie("username") || username || "";
   if (name != username) {
     name = prompt("Please enter your username:");
   }else {
@@ -150,6 +151,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
   });
+  getChecksum();
+  usernamePrompt(cookie_name);
   fetchMessages();
   setInterval(fetchMessages, 5000); // Fetch messages every 5 seconds
 });
