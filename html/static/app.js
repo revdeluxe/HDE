@@ -60,7 +60,6 @@ function usernamePrompt(username) {
 function send(){
   const message = document.getElementById("messageInput").value;
   if (!message) return;
-
   fetch(`/api/send/${encodeURIComponent(message)}`, {
     method: "POST",
     headers: {
@@ -93,7 +92,8 @@ function sentMessage(name) {
 }
 
 function fetchMessages() {
-  fetch("/api/messages/" + encodeURIComponent(getChecksum()), {
+  checksum = getChecksum();
+  fetch(`/api/messages/${encodeURIComponent(checksum)}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
