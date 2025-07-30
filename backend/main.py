@@ -164,6 +164,7 @@ def send_message():
         lora.send(message)
         msg = jsonify({"status": "sent", "message": message})
         print(f"[INFO] Message sent: {message}")
+        parse_send_data(message)
         return msg
     except Exception as e:
         print(f"[ERROR] {e}")
