@@ -5,7 +5,8 @@ from pathlib import Path
 from datetime import datetime, time
 
 DATA_DIR = Path("messages")
-SAVE_DIR = DATA_DIR / "saves"
+SAVE_DIR = os.path.join("messages", "saves")
+os.makedirs(SAVE_DIR, exist_ok=True)
 TO_SEND_PATH = DATA_DIR / "to_send.json"
 CHUNK_DATA_PATH = DATA_DIR / "chunk_data.json"
 
@@ -341,8 +342,9 @@ class Parser:
     def save_chunk_data(sender, timestamp, batch, chunk_id, message):
         file_path = os.path.join(SAVE_DIR, f"{sender}_{timestamp}_{batch}.json")
 
+        # If file exists, load and append. Otherwise, start new dict.
         if os.path.exists(file_path):
-            with open(file_path, "a") as f:
+            with open(file_path, "r") as f:
                 data = json.load(f)
         else:
             data = {}
@@ -350,7 +352,7 @@ class Parser:
         data[str(chunk_id)] = message
 
         with open(file_path, "w") as f:
-            json.dump(data, f)
+            json.dump(data, f, indent=2)
 
     @staticmethod
     def get_chunks(data: bytes, chunk_size: int = 4096) -> list:
