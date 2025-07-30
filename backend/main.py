@@ -211,7 +211,6 @@ def source_messages(filename):
     path = os.path.join("messages", filename)
     if not os.path.exists(path):
         return jsonify({"data": []}), 200
-    get_back_to_listening()
 
     async def read():
         async with aiofiles.open(path, mode='r') as f:
