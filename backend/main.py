@@ -70,22 +70,39 @@ async def send_message(message: str):
 
 @app.get("/api/messages/{checksum}")
 async def get_messages(checksum: str):
-    if checksum != Parser.updated_messages_checksum(messages_file):
-        json_response = {"status": "304", "message": "Checksum mismatch, Expected Requesting update of messages", "expected": Parser.updated_messages_checksum(messages_file), "received": checksum}
-        raise JSONResponse(json_response)
+    expected_checksum = Parser.updated_messages_checksum(messages_file)
+    
+    if checksum != expected_checksum:
+        return JSONResponse(
+            status_code=304,
+            content={
+                "status": "304",
+                "message": "Checksum mismatch. Requesting update of messages.",
+                "expected": expected_checksum,
+                "received": checksum
+            }
+        )
 
-    if MessageStream.load_messages(messages_file):
-        with open(messages_file, "r") as f:
-            checksum = Parser.updated_messages_checksum(messages_file)
-            from_user = Parser.parse_username(checksum)
-            messages = json.load(f)
-        return JSONResponse(status_code=404, content={"status": "404", "message": "No messages found"})
-    else:
-        with open(messages_file, "r") as f:
-            checksum = Parser.updated_messages_checksum(messages_file)
-            from_user = Parser.parse_username(checksum)
-            messages = json.load(f)
-        return JSONResponse(content={"status": "200","user": from_user, "messages": messages, "checksum": checksum, "msg_status": "sent"})
+    # Check if the messages file has content
+    if not MessageStream.load_messages(messages_file):
+        return JSONResponse(
+            status_code=404,
+            content={"status": "404", "message": "No messages found"}
+        )
+
+    # Load messages and return
+    with open(messages_file, "r") as f:
+        messages = json.load(f)
+
+    return JSONResponse(
+        content={
+            "status": "200",
+            "user": Parser.parse_username(expected_checksum),
+            "messages": messages,
+            "checksum": expected_checksum,
+            "msg_status": "sent"
+        }
+    )
 
 @app.get("/api/checksum")
 async def get_checksum():
