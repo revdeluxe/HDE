@@ -53,14 +53,6 @@ def auto_save_message(data: dict):
 def get_working_directory():
     return jsonify({"cwd": os.getcwd()})
 
-@app.route("/service-offline.html")
-def service_offline():
-    return send_from_directory("../html", "service-offline.html")
-
-@app.route("/")
-def index():
-    return send_from_directory("../html", "index.html")
-
 @app.route("/api/send/<message>", methods=["POST"])
 def send_message(message):
     if not message:
