@@ -68,45 +68,9 @@ async def send_message(message: str):
 
     return JSONResponse(content=result)
 
-@app.get("/api/messages/{checksum}")
-async def get_latest_messages(checksum: str):
-    expected_checksum = Parser.updated_messages_checksum(messages_file)
-    
-    if checksum != expected_checksum:
-        return JSONResponse(
-            status_code=304,
-            content={
-                "status": "304",
-                "message": "Checksum mismatch. Requesting update of messages.",
-                "expected": expected_checksum,
-                "received": checksum
-            }
-        )
-
-    # Check if the messages file has content
-    if not MessageStream.load_messages(messages_file):
-        return JSONResponse(
-            status_code=404,
-            content={"status": "404", "message": "No messages found"}
-        )
-
-    # Load messages and return
-    with open(messages_file, "r") as f:
-        messages = json.load(f)
-
-    return JSONResponse(
-        content={
-            "status": "200",
-            "user": Parser.parse_username(expected_checksum),
-            "messages": messages,
-            "checksum": expected_checksum,
-            "msg_status": "sent"
-        }
-    )
-
 @app.get("/api/messages")
 async def get_messages():
-    return JSONResponse(content={"messages": MessageStream.load_messages(messages_file), "checksum": checksum})
+    return JSONResponse(content={"data": MessageStream.load_messages(messages_file)})
 
 @app.get("/api/checksum")
 async def get_checksum():
