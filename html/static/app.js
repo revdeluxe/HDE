@@ -45,7 +45,7 @@ function usernamePrompt(defaultUsername) {
       document.cookie = `username=${encodeURIComponent(uname)}; path=/;`;
     }
   }
-  document.getElementById("UsernameField").value = uname;
+  document.getElementById("UsernameField").value = uname || (document.cookie = `username=${encodeURIComponent(uname)};`);
   return uname;
 }
 

@@ -144,6 +144,8 @@ def get_back_to_listening():
         print("📥 New packet received:", data)
         if data:
             asyncio.run(auto_save_message_async(data))
+            lora.close()
+            lora.set_mode_rx()
     return jsonify({"status": "ok", "message": "Switched back to listening mode"})
 
 @app.route("/api/working_directory")
