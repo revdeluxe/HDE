@@ -160,5 +160,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   fetchMessages();
+  fetchMessagesLoRa();
   setInterval(fetchMessages, 5000);
 });
