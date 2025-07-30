@@ -179,7 +179,7 @@ def send_message(message):
 
 @app.route("/api/messages", methods=["GET"])
 def get_messages():
-    return jsonify({"data": stream.load_messages(), "batch": stream.load_chunks()})
+    return jsonify({"data": stream.load_messages()})
 
 @app.route("/api/checksum")
 def get_checksum():
