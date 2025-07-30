@@ -86,27 +86,39 @@ async function send() {
 }
 
 function fetchMessages() {
-  fetch(`/api/messages/${encodeURIComponent(conversation)}`, {
-    method: "GET",
-  })
+  fetch(`/api/messages/${conversation}`)
     .then(response => {
       if (!response.ok) throw new Error("Fetch failed");
       return response.json();
     })
     .then(data => {
+      const messagesContainer = document.getElementById("messages");
+      if (!messagesContainer) {
+        console.error("Element with ID 'messages' not found.");
+        return;
+      }
+
       messagesContainer.innerHTML = ""; // Clear previous
-      data.forEach(msg => {
-        const from_user = getCookie("username");
-        const messageElement = document.createElement("div");
-        messageElement.innerHTML = `<strong>${msg.from}</strong>: ${msg.message}`;
-        messageElement.className = msg.from === from_user ? "sent" : "messageReceived";
-        messagesContainer.appendChild(messageElement);
+
+      const from_user = getCookie("username");
+
+      data.data.forEach(entry => {
+        const from = entry.from || "Unknown";
+        const chunk = entry.chunk || [];
+
+        chunk.forEach(msg => {
+          const messageElement = document.createElement("div");
+          messageElement.innerHTML = `<strong>${from}</strong>: ${msg.message}`;
+          messageElement.className = from === from_user ? "sent" : "messageReceived";
+          messagesContainer.appendChild(messageElement);
+        });
       });
     })
     .catch(error => {
       console.error("Error loading messages:", error);
     });
 }
+
 
 document.addEventListener("DOMContentLoaded", async () => {
   const defaultUsername = "Guest";
