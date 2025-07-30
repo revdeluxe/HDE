@@ -117,6 +117,18 @@ class Parser:
         return crc1 != crc2
 
     @staticmethod
+    def is_messages_dir(path: Path) -> bool:
+        """
+        Checks if a directory is a valid messages directory.
+        It should contain 'messages.json' and 'to_send.json'.
+        """
+        if not path.is_dir():
+            return False
+        if not (path / "messages.json").exists() or not (path / "to_send.json").exists():
+            return False
+        return True
+
+    @staticmethod
     def get_chunks(data: bytes, chunk_size: int = 4096) -> list:
         """
         Splits a byte string into chunks of specified size (default 4096 bytes).
