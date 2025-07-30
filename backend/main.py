@@ -203,6 +203,7 @@ def get_messages():
 
 @app.route("/api/messages/<filename>", methods=["GET"])
 def source_messages(filename):
+    get_back_to_listening()
     path = os.path.join("messages", filename)
     if not os.path.exists(path):
         return jsonify({"data": []}), 200
