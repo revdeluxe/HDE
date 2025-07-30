@@ -129,7 +129,11 @@ function fetchMessagesLoRa(){
     })
     .then(data => {
       console.log("LoRa messages:", data);
-      alert(JSON.stringify(data));
+      notifyUser("New LoRa messages received");
+      const messageElement = document.createElement("div");
+      messageElement.innerHTML = `<strong>${from}</strong>: ${msg.message}`;
+      messageElement.className = from === from_user ? "sent" : "messageReceived";
+      messagesContainer.appendChild(messageElement)
     })
     .catch(error => {
       console.error("Error fetching LoRa messages:", error);
