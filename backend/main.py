@@ -8,7 +8,9 @@ import os
 import atexit
 import aiofiles
 import asyncio
-
+from threading import Thread
+import threading
+from listener_thread import listen_lora_forever
 from parser import Parser
 from stream import MessageStream
 from pyLoRa.configure import run_checks
@@ -28,6 +30,11 @@ to_send_file = messages_dir / "to_send.json"
 save_dir = Path("messages/saves")
 checksum = Parser.updated_messages_checksum(messages_file)
 from_user = Parser.parse_username(checksum)
+
+@app.before_first_request
+def start_lora_listener():
+    t = threading.Thread(target=listen_lora_forever, daemon=True)
+    t.start()
 
 def send_via_lora(message: str):
     batch_id = Parser.generate_batch_id(to_send_file)
@@ -53,7 +60,7 @@ def send_via_lora(message: str):
     encoded_message = Parser.prepare(prepared_data)
 
     # Send each chunked message (could also send full JSON if small enough)
-    lora.set_mode("TX")
+    lora.set_mode_tx()
     if isinstance(encoded_message, list):
         for msg in encoded_message:
             lora.send(msg)
@@ -134,19 +141,17 @@ async def auto_save_message_async(data: dict):
         await f.write(json.dumps(messages))
         await f.truncate()
 
-@app.route("/api/receive", methods=["POST"])
-def get_back_to_listening():
-    lora.set_mode_rx()
-    time.sleep(1)  # Allow some time for LoRa to switch modes
-    if lora.receive():
-        packet = lora.read()
-        data = parse_heard_data(packet)
-        print("📥 New packet received:", data)
-        if data:
-            asyncio.run(auto_save_message_async(data))
-            lora.close()
-            lora.set_mode_rx()
-    return jsonify({"status": "ok", "message": "Switched back to listening mode"})
+def get_lora_state():
+    """
+    Returns the current LoRa state.
+    """ 
+    return {
+        "mode": lora.get_mode(),
+        "frequency": lora.get_frequency(),
+        "tx_power": lora.get_tx_power(),
+        "rssi": lora.get_rssi(),
+        "snr": lora.get_snr()
+    }
 
 @app.route("/api/working_directory")
 def get_working_directory():

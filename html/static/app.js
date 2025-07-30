@@ -119,6 +119,19 @@ function fetchMessages() {
     });
 }
 
+function notifyUser(message) {
+  let bubble = document.getElementById("notificationBubble");
+  if (!bubble) {
+    bubble = document.createElement("div");
+    bubble.id = "notificationBubble";
+    bubble.className = "notificationBubble";
+    bubble.textContent = message;
+    document.body.appendChild(bubble);
+  } else {
+    bubble.textContent = message;
+  }
+  bubble.style.display = "block";
+
 function fetchMessagesLoRa(){
   fetch('/api/receive', {
     method: 'POST',
