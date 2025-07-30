@@ -86,7 +86,9 @@ async function send() {
 }
 
 function fetchMessages() {
-  fetch("/api/messages/${conversation}")
+  fetch(`/api/messages/${encodeURIComponent(conversation)}`, {
+    method: "GET",
+  })
     .then(response => {
       if (!response.ok) throw new Error("Fetch failed");
       return response.json();
