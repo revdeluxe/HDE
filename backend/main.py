@@ -10,10 +10,10 @@ from parser import Parser
 from stream import MessageStream
 from pyLoRa.configure import run_checks
 from pyLoRa.lora_module import LoRa
-
+lora = LoRa()
 # Initialize Flask and LoRa
 app = Flask(__name__)
-lora = LoRa()
+
 lora.reset()
 lora.set_frequency(433)
 lora.set_tx_power(14)
