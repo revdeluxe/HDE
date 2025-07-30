@@ -61,7 +61,7 @@ function usernamePrompt(username) {
 
 function send(){
   const message = document.getElementById("messageInput").value;
-  checksum = getChecksum();
+  schecksum = getChecksum();
   if (!message) return;
   fetch(`/api/send/${encodeURIComponent(message)}`, {
     method: "POST",
@@ -72,7 +72,7 @@ function send(){
     body: JSON.stringify(
       { from },
       { message },
-      { checksum }
+      { schecksum }
     ),
   })
   .then(response => {
