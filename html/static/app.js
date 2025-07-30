@@ -74,7 +74,7 @@ async function send() {
 
   messageStatus("sending");
 
-  fetch(`/api/send/${encodeURIComponent(message)}`, {
+  fetch(`/api/send`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

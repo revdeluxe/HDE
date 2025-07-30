@@ -164,15 +164,21 @@ def get_working_directory():
 @app.route("/api/send", methods=["POST"])
 def send_message():
     data = request.get_json()
+    sender = data.get("from")
     message = data.get("message")
+    checksum = data.get("checksum")
+
     if not message:
         return jsonify({"error": "No message provided"}), 400
+
     try:
+        print(f"[INFO] From: {sender}, Checksum: {checksum}")
         lora.send(message)
         return jsonify({"status": "sent", "message": message})
     except Exception as e:
         print(f"[ERROR] {e}")
         return jsonify({"error": str(e)}), 500
+
 
 @app.route("/api/messages", methods=["GET"])
 def get_messages():
