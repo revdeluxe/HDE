@@ -132,27 +132,6 @@ function notifyUser(message) {
   }
   bubble.style.display = "block";
 }
-function fetchMessagesLoRa(){
-  fetch('/api/receive', {
-    method: 'POST',
-  })
-    .then(response => {
-      if (!response.ok) throw new Error("Fetch failed");
-      return response.json();
-    })
-    .then(data => {
-      console.log("LoRa messages:", data);
-      notifyUser("New LoRa messages received");
-      const messageElement = document.createElement("div");
-      messageElement.innerHTML = `<strong>${from}</strong>: ${msg.message}`;
-      messageElement.className = from === from_user ? "sent" : "messageReceived";
-      messagesContainer.appendChild(messageElement)
-    })
-    .catch(error => {
-      console.error("Error fetching LoRa messages:", error);
-    });
-}
-
 
 document.addEventListener("DOMContentLoaded", async () => {
   const defaultUsername = "Guest";
@@ -177,7 +156,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   fetchMessages();
-  fetchMessagesLoRa();
-  setInterval(fetchMessagesLoRa, 5000);
   setInterval(fetchMessages, 5000);
 });
