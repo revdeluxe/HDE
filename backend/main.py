@@ -74,7 +74,11 @@ async def get_messages(checksum: str):
         json_response = {"status": "304", "message": "Checksum mismatch, Expected Requesting update of messages", "expected": Parser.updated_messages_checksum(messages_file), "received": checksum}
         raise JSONResponse(json_response)
 
-    if not MessageStream.load_messages(messages_file):
+    if MessageStream.load_messages(messages_file):
+        with open(messages_file, "r") as f:
+            checksum = Parser.updated_messages_checksum(messages_file)
+            from_user = Parser.parse_username(checksum)
+            messages = json.load(f)
         return JSONResponse(status_code=404, content={"status": "404", "message": "No messages found"})
     else:
         with open(messages_file, "r") as f:
