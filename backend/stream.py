@@ -48,12 +48,14 @@ class MessageStream:
         for key in expired:
             del self.buffers[key]
 
-    def messages_path(self) -> Path:
+    @staticmethod
+    def messages_path() -> Path:
         """
         Returns the path to the messages.json file.
         """
         return Path("/backend/messages/messages.json")
-
+    
+    @staticmethod
     def load_messages(path: Path):
         if not path.is_file():
             return []
