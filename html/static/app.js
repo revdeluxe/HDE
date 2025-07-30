@@ -46,6 +46,11 @@ function usernamePrompt() {
   from = getCookie("username") || from;
   if (!from || from === "Anonymous") {
     from = prompt("Please enter your username:");
+    if (from) {
+      document.cookie = `username=${encodeURIComponent(from)}; path=/;`;
+      document.getElementById("UsernameField").innerHTML = from;
+      document.getElementById("UsernameField").value = from;
+    }
   }
   if (from) {
     document.getElementById("UsernameField").value = from;
@@ -89,7 +94,13 @@ function sentMessage(name) {
 }
 
 function fetchMessages() {
-  fetch("/api/messages")
+  fetch("/api/messages/" + encodeURIComponent(getChecksum()), {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": getCookie("csrftoken"),
+    },
+  })
     .then(response => {
       if (!response.ok) throw new Error("Network response was not ok");
       return response.json();

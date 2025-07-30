@@ -68,7 +68,7 @@ async def send_message(message: str):
 
     return JSONResponse(content=result)
 
-@app.post("/api/messages")
+@app.get("/api/messages/{checksum}")
 async def get_messages(checksum: str):
     if checksum != Parser.updated_messages_checksum(messages_file):
         json_response = {"status": "304", "message": "Checksum mismatch, Expected Requesting update of messages", "expected": Parser.updated_messages_checksum(messages_file), "received": checksum}
