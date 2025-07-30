@@ -149,17 +149,13 @@ def get_back_to_listening():
 def get_working_directory():
     return jsonify({"cwd": os.getcwd()})
 
-from parser import parse_message, save_chunk_data, reassemble_chunks, calculate_crc
-import json
-import os
-
 @app.route("/api/send", methods=["POST"])
 def send_lora_message():
     try:
         data = request.json
         raw_message = data.get("message", "")
-        
-        parsed = parse_message(raw_message)
+
+        parsed = Parser.parse_message(raw_message)
         if not parsed["valid"]:
             return jsonify({"status": "error", "message": parsed["error"]}), 400
 
@@ -169,12 +165,12 @@ def send_lora_message():
         chunks = parsed["chunk"]
 
         for chunk in chunks:
-            save_chunk_data(from_user, timestamp, batch_id, chunk["id"], chunk["message"])
+            Parser.save_chunk_data(from_user, timestamp, batch_id, chunk["id"], chunk["message"])
 
         # Attempt to reassemble
-        complete_message = reassemble_chunks(from_user, timestamp, batch_id)
+        complete_message = Parser.reassemble_chunks(from_user, timestamp, batch_id)
         if complete_message:
-            checksum = calculate_crc(complete_message)
+            checksum = Parser.calculate_crc(complete_message)
             print(f"[INFO] Message reassembled: {complete_message}")
             print(f"[INFO] Checksum: {checksum}")
             return jsonify({"status": "ok", "message": complete_message, "checksum": checksum}), 200
