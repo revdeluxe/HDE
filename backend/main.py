@@ -19,7 +19,7 @@ lora.reset()
 lora.set_frequency(433)
 lora.set_tx_power(14)
 
-messages_dir = Path("backend/messages")
+messages_dir = MessageStream.messages_path()
 messages_file = messages_dir / "messages.json"
 to_send_file = messages_dir / "to_send.json"
 stream = MessageStream(timeout=120)
@@ -61,7 +61,7 @@ def send_message(message):
     result = send_via_lora(message)
     return result
 
-@app.route("/api/messages")
+@app.route("/api/messages", methods=["GET"])
 def get_messages():
     return jsonify({"data": MessageStream.load_messages(messages_file)})
 
