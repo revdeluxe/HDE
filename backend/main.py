@@ -50,11 +50,11 @@ async def get_working_directory():
 
 @app.get("/service-offline.html")
 async def service_offline():
-    return FileResponse("html/service-offline.html")
+    return FileResponse("../html/service-offline.html")
 
 @app.get("/")
 async def index():
-    return FileResponse("html/index.html")
+    return FileResponse("../html/index.html")
 
 @app.post("/api/send/{message}")
 async def send_message(message: str):
