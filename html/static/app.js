@@ -1,12 +1,9 @@
-// static/app.js
-let from = document.getElementById("UsernameField").value;
 let messagesContainer = document.getElementById("messagesContainer");
-let message = document.getElementById("messageInput").value;
-let cookie_name = getCookie("username");
 let checksum = "";
 
 function messageStatus(status) {
   const statusElement = document.getElementById("status-busy");
+  if (!statusElement) return;
   if (status === "sending") {
     statusElement.textContent = "Sending...";
     statusElement.className = "pending";
@@ -22,51 +19,48 @@ function messageStatus(status) {
   }
 }
 
-function getChecksum() {
-  fetch("/api/checksum")
-    .then(response => {
-      if (!response.ok) throw new Error("Network response was not ok");
-      return response.json();
-    })
-    .then(data => {
-      checksum = data.checksum;
-    })
-    .catch(error => {
-      console.error("Error fetching checksum:", error);
-    });
-  return checksum;
+async function getChecksum() {
+  try {
+    const response = await fetch("/api/checksum");
+    if (!response.ok) throw new Error("Failed to fetch checksum");
+    const data = await response.json();
+    return data.checksum || "";
+  } catch (error) {
+    console.error("Checksum fetch error:", error);
+    return "";
+  }
 }
 
 function getCookie(name) {
-  const match = document.cookie.match(
-    new RegExp('(?:^|; )' + name + '=([^;]*)')
-  );
+  const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-function usernamePrompt(username) {
+function usernamePrompt(defaultUsername) {
   let uname = getCookie("username");
-  if (uname) {
-    document.getElementById("UsernameField").innerHTML = uname;
-    document.getElementById("UsernameField").value = uname;
-  } else {
-    uname = prompt("Please enter your username:") || username;
+  if (!uname) {
+    uname = prompt("Please enter your username:") || defaultUsername;
     if (uname) {
       document.cookie = `username=${encodeURIComponent(uname)}; path=/;`;
-      document.getElementById("UsernameField").innerHTML = uname;
-      document.getElementById("UsernameField").value = uname;
     }
   }
+  document.getElementById("UsernameField").value = uname;
   return uname;
 }
 
-function send() {
-  if (!message) return;
+async function send() {
+  const from = document.getElementById("UsernameField").value;
+  const message = document.getElementById("messageInput").value;
+  if (!message.trim()) return;
+
+  const checksum = await getChecksum();
+
+  messageStatus("sending");
+
   fetch(`/api/send/${encodeURIComponent(message)}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-CSRF-Token": getCookie("csrftoken"),
     },
     body: JSON.stringify({
       from,
@@ -75,85 +69,64 @@ function send() {
     }),
   })
     .then(response => {
-      if (!response.ok) throw new Error("Network response was not ok");
+      if (!response.ok) throw new Error("Send failed");
       return response.json();
     })
     .then(data => {
-      console.log("Message sent successfully:", data);
+      console.log("Message sent:", data);
+      messageStatus("sent");
+      document.getElementById("messageInput").value = ""; // clear input
+      fetchMessages(); // Refresh messages
     })
     .catch(error => {
-      console.error("Error sending message:", error);
+      console.error("Send error:", error);
+      messageStatus("LoRa failed");
     });
-}
-
-
-function sentMessage(name) {
-    const messageElement = document.createElement("div");
-    messageElement.className = "message";
-    messageElement.innerHTML = `<strong>${name}</strong>: <span class="status">Message sent successfully</span>`;
-    messagesContainer.appendChild(messageElement);
 }
 
 function fetchMessages() {
   fetch("/api/messages/")
     .then(response => {
-      if (!response.ok) throw new Error("Network response was not ok");
+      if (!response.ok) throw new Error("Fetch failed");
       return response.json();
     })
     .then(data => {
-      messagesContainer.innerHTML = ""; // Clear previous messages
+      messagesContainer.innerHTML = ""; // Clear previous
       data.forEach(msg => {
-        let from_user = msg.from_user;
-        let msgStatus = msg.msg_status;
+        const from_user = getCookie("username");
         const messageElement = document.createElement("div");
-        if (msg.from === from_user) { // Sent message
-          messageElement.innerHTML = `<strong>${msg.from}</strong>: ${msg.message}`;
-          messageElement.className = "sent";
-          messageStatus(msgStatus);
-          const statusElement = document.createElement("span");
-          statusElement.className = "status";
-          statusElement.innerHTML = `<span class="status">Message sent successfully</span>`;
-          messagesContainer.appendChild(statusElement);
-          messagesContainer.appendChild(messageElement);
-        } else { // Received message
-          messageElement.innerHTML = `<strong>${msg.from}</strong>: ${msg.message}`;
-          messageElement.className = "messageReceived";
-          messagesContainer.appendChild(messageElement);
-        }
+        messageElement.innerHTML = `<strong>${msg.from}</strong>: ${msg.message}`;
+        messageElement.className = msg.from === from_user ? "sent" : "messageReceived";
+        messagesContainer.appendChild(messageElement);
       });
     })
     .catch(error => {
-      console.error("Error fetching messages:", error);
+      console.error("Error loading messages:", error);
     });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  usernamePrompt();
-  let sendButton = document.getElementById("sendButton");
+document.addEventListener("DOMContentLoaded", async () => {
+  const defaultUsername = "Guest";
+  const user = usernamePrompt(defaultUsername);
+
+  const sendButton = document.getElementById("sendButton");
   if (sendButton) {
     sendButton.addEventListener("click", (event) => {
-      try {
-        event.preventDefault();  // <-- fixed: was `message.preventDefault()`
+      event.preventDefault();
+      send();
+    });
+  }
+
+  const messageInput = document.getElementById("messageInput");
+  if (messageInput) {
+    messageInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
         send();
-      } catch (error) {
-        console.error("Error sending message:", error);
       }
     });
-  } else {
-    console.warn("sendButton not found in DOM.");
   }
-  document.getElementById("messageInput").addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault(); // Prevent form submission
-      try {
-        send();
-      } catch (error) {
-        console.error("Error sending message on Enter key press:", error);
-      }
-    }
-  });
-  getChecksum();
-  usernamePrompt(cookie_name);
+
   fetchMessages();
-  setInterval(fetchMessages, 5000); // Fetch messages every 5 seconds
+  setInterval(fetchMessages, 5000);
 });
