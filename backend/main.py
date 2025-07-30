@@ -216,9 +216,10 @@ def source_messages(filename):
         async with aiofiles.open(path, mode='r') as f:
             lines = await f.readlines()
             return [json.loads(line.strip()) for line in lines if line.strip()]
-    
+
     messages = asyncio.run(read())
     return jsonify({"data": messages})
+
 
 
 @app.route("/api/checksum")
