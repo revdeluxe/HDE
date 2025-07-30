@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import time
 import os
+import atexit
 
 from parser import Parser
 from stream import MessageStream
@@ -76,5 +77,11 @@ def get_messages():
 def get_checksum():
     return jsonify({"checksum": checksum})
 
+def cleanup_gpio():
+        if hasattr(lora, "gpio"):
+            lora.gpio.cleanup()
+
 if __name__ == "__main__":
-    app.run(host='localhost', port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+    atexit.register(cleanup_gpio)
+
