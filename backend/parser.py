@@ -91,7 +91,6 @@ class Parser:
                         chunks = re.findall(r"\|c(\d+)\|([^|]+)", value)
                         for cid, msg in chunks:
                             result["chunk"].append({"id": int(cid), "message": msg})
-                            time.sleep(1)  # Simulate processing delay
                     else:
                         result["chunk"].append({"id": 1, "message": value})
 
@@ -375,8 +374,7 @@ class Parser:
         """
         chunk_id = incoming_chunk["chunk_id"]
         message_part = incoming_chunk["message"]
-        batch_size = incoming_chunk["chunk_batch"]
-
+        batch_size = incoming_chunk.get("expected_chunks", len(existing_chunks))  # Or pass explicitly
         existing_chunks[chunk_id] = message_part
         complete = Parser.is_message_complete(existing_chunks, batch_size)
         return existing_chunks, complete
