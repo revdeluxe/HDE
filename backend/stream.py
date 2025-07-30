@@ -54,23 +54,11 @@ class MessageStream:
         """
         return Path("messages/messages.json")
 
-    def load_messages(self, sender: str = None):
-        """
-        Loads messages.json and optionally filters by sender.
-        """
-        path = self.messages_path()
-        if not path.exists():
+    def load_messages(path: Path):
+        if not path.is_file():
             return []
-
-        with path.open("r", encoding="utf-8") as f:
-            try:
-                all_messages = json.load(f)
-            except json.JSONDecodeError:
-                return []
-
-        if sender:
-            return [msg for msg in all_messages if msg.get("from") == sender]
-        return all_messages
+        with open(path, "r") as f:
+            return json.load(f)
 
     def save_message(self, sender: str, message: str, timestamp: int):
         """
