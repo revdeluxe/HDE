@@ -2,7 +2,7 @@ import threading
 import json
 import time
 import os
-from parser import parse_message
+from parser import Parser
 from pyLoRa import LoRa  # Your custom driver
 from datetime import datetime
 
@@ -25,7 +25,7 @@ def listen_lora_forever():
     while True:
         if lora.received_packet():
             raw = lora.read_payload()
-            parsed = parse_message(raw)
+            parsed = Parser.parse_message(raw)
             if parsed:
                 with lock:
                     with open(FILENAME, 'a') as f:
