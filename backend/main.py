@@ -195,37 +195,25 @@ def send_message():
 
 
 
+@app.route("/api/messages", methods=["GET"])
+def get_messages():
+    # This should return recent messages from storage/logs
+    messages = stream.load_messages()  # Your function here
+    return jsonify({"data": messages})
+
 @app.route("/api/messages/<filename>", methods=["GET"])
 def source_messages(filename):
     path = os.path.join("messages", filename)
     if not os.path.exists(path):
         return jsonify({"data": []}), 200
-
-    # Optional: re-enable LoRa receive mode
     get_back_to_listening()
 
-    # Get client-side known message count
-    client_known = int(request.args.get("offset", 0))
-
-    async def read_new_lines():
-        timeout = 10  # seconds
-        interval = 1
-        waited = 0
-
-        while waited < timeout:
-            async with aiofiles.open(path, mode='r') as f:
-                lines = await f.readlines()
-
-            if len(lines) > client_known:
-                new_lines = lines[client_known:]
-                return [json.loads(line.strip()) for line in new_lines if line.strip()]
-
-            await asyncio.sleep(interval)
-            waited += interval
-
-        return []  # No new messages
-
-    messages = asyncio.run(read_new_lines())
+    async def read():
+        async with aiofiles.open(path, mode='r') as f:
+            lines = await f.readlines()
+            return [json.loads(line.strip()) for line in lines if line.strip()]
+    
+    messages = asyncio.run(read())
     return jsonify({"data": messages})
 
 

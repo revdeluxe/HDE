@@ -119,6 +119,23 @@ function fetchMessages() {
     });
 }
 
+function fetchMessagesLoRa(){
+  fetch('/api/receive', {
+    method: 'POST',
+  })
+    .then(response => {
+      if (!response.ok) throw new Error("Fetch failed");
+      return response.json();
+    })
+    .then(data => {
+      console.log("LoRa messages:", data);
+      alert(JSON.stringify(data));
+    })
+    .catch(error => {
+      console.error("Error fetching LoRa messages:", error);
+    });
+}
+
 
 document.addEventListener("DOMContentLoaded", async () => {
   const defaultUsername = "Guest";
