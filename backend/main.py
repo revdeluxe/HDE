@@ -182,7 +182,7 @@ def get_messages():
     return jsonify({"data": messages})
 
 @app.route("/api/messages/<filename>", methods=["GET"])
-def get_messages(filename):
+def source_messages(filename):
     path = os.path.join("messages", filename)
     if not os.path.exists(path):
         return jsonify({"data": []}), 404
