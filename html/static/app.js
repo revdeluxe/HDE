@@ -131,7 +131,7 @@ function notifyUser(message) {
     bubble.textContent = message;
   }
   bubble.style.display = "block";
-
+}
 function fetchMessagesLoRa(){
   fetch('/api/receive', {
     method: 'POST',
