@@ -1,5 +1,6 @@
 let messagesContainer = document.getElementById("messagesContainer");
 let checksum = "";
+let conversation = "messages.json";
 
 function messageStatus(status) {
   const statusElement = document.getElementById("status-busy");
@@ -85,7 +86,7 @@ async function send() {
 }
 
 function fetchMessages() {
-  fetch("/api/messages/")
+  fetch("/api/messages/${conversation}")
     .then(response => {
       if (!response.ok) throw new Error("Fetch failed");
       return response.json();
