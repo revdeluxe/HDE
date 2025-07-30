@@ -93,7 +93,7 @@ function sentMessage(name) {
 
 function fetchMessages() {
   checksum = getChecksum();
-  fetch(`/api/messages/${encodeURIComponent(checksum)}`, {
+  fetch(`/api/messages/${checksum}`, {
     method: "GET",
     headers: {
       "Content-Type": "application/json",
