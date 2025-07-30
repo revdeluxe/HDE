@@ -52,7 +52,7 @@ class MessageStream:
         """
         Returns the path to the messages.json file.
         """
-        return Path("messages/messages.json")
+        return Path("/backend/messages/messages.json")
 
     def load_messages(path: Path):
         if not path.is_file():
