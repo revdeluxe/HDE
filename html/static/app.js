@@ -42,20 +42,19 @@ function getCookie(name) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-function usernamePrompt() {
-  from = getCookie("username") || from;
-  if (!from || from === "Anonymous") {
-    from = prompt("Please enter your username:");
-    if (from) {
-      document.cookie = `username=${encodeURIComponent(from)}; path=/;`;
-      document.getElementById("UsernameField").innerHTML = from;
-      document.getElementById("UsernameField").value = from;
-    }
+function usernamePrompt(username) {
+  let name = getCookie("username");
+  if (name != username) {
+    name = prompt("Please enter your username:");
+  }else {
+    name = username;
   }
-  if (from) {
-    document.getElementById("UsernameField").value = from;
+  if (name) {
+    document.cookie = `username=${encodeURIComponent(name)}; path=/;`;
+    document.getElementById("UsernameField").innerHTML = name;
+    document.getElementById("UsernameField").value = name;
   }
-  return from;
+  return name;
 }
 
 function send(){
