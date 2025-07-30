@@ -177,7 +177,7 @@ def send_message():
 @app.route("/api/messages", methods=["GET"])
 def get_messages():
     # This should return recent messages from storage/logs
-    messages = MessageStream.load_messages()  # Your function here
+    messages = stream.load_messages()  # Your function here
     return jsonify({"data": messages})
 
 @app.route("/api/messages/<filename>", methods=["GET"])
