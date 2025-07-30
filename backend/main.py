@@ -135,7 +135,6 @@ async def auto_save_message_async(data: dict):
 
 @app.route("/api/headers", methods=["GET"])
 def get_headers():
-    headers_status()
     info = {
         "RSSI": lora.get_rssi(),
         "SNR": lora.get_snr(),
@@ -174,7 +173,9 @@ def send_message():
     try:
         print(f"[INFO] From: {sender}, Checksum: {checksum}")
         lora.send(message)
-        return jsonify({"status": "sent", "message": message})
+        msg = jsonify({"status": "sent", "message": message}
+        print(f"[INFO] Message sent: {message}")
+        return msg)
     except Exception as e:
         print(f"[ERROR] {e}")
         return jsonify({"error": str(e)}), 500
