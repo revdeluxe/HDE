@@ -150,35 +150,44 @@ def get_working_directory():
     return jsonify({"cwd": os.getcwd()})
 
 @app.route("/api/send", methods=["POST"])
-def send_lora_message():
+def send_message():
     try:
         data = request.json
-        raw_message = data.get("message", "")
-        print(f"[INFO] Received message to send: {raw_message}")
-        parsed = Parser.parse_message(raw_message)
-        if not parsed["valid"]:
-            return jsonify({"status": "error", "message": parsed["error"]}), 400
+        from_user = data.get("from", "unknown")
+        raw_message = data.get("message", "").strip()
+        print(f"[DEBUG] Received message from {from_user}: {raw_message}")
+        if not raw_message:
+            return jsonify({"status": "error", "message": "No message provided"}), 400
 
-        from_user = parsed["from"]
-        batch_id = parsed["batch"]
-        timestamp = parsed["timestamp"]
-        chunks = parsed["chunk"]
+        timestamp = int(time.time())
+        batch_id = 1  # Increment or generate uniquely if needed
 
-        for chunk in chunks:
-            Parser.save_chunk_data(from_user, timestamp, batch_id, chunk["id"], chunk["message"])
+        # Chunk message if needed (you can define chunk_message())
+        chunks = Parser.chunk_message(raw_message)  # Returns a list of {id, text}
 
-        # Attempt to reassemble
-        complete_message = Parser.reassemble_chunks(from_user, timestamp, batch_id)
-        if complete_message:
-            checksum = Parser.calculate_crc(complete_message)
-            print(f"[INFO] Message reassembled: {complete_message}")
-            print(f"[INFO] Checksum: {checksum}")
-            return jsonify({"status": "ok", "message": complete_message, "checksum": checksum}), 200
+        for i, chunk in enumerate(chunks, start=1):
+            formatted = f"from={from_user};timestamp={timestamp};chunk_batch={batch_id};chunk_id={i};message={chunk['text']};"
+            print(f"[DEBUG] Sending chunk: {formatted}")
+            lora.send(formatted.encode("utf-8"))
+            Parser.save_chunk_data(from_user, timestamp, batch_id, i, chunk['text'])
 
-        return jsonify({"status": "incomplete", "message": "Chunk saved, waiting for more"}), 200
+        # Attempt reassembly
+        if len(chunks) == 1:
+            final_message = raw_message
+        else:
+            final_message = Parser.reassemble_chunks(from_user, timestamp, batch_id)
+
+        checksum = Parser.calculate_crc(final_message)
+        print(f"[INFO] Message sent. CRC: {checksum}")
+
+        return jsonify({
+            "status": "ok",
+            "message": final_message,
+            "checksum": checksum
+        }), 200
 
     except Exception as e:
-        print(f"[ERROR] Failed to process message: {e}")
+        print(f"[ERROR] Send failed: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
