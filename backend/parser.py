@@ -337,14 +337,19 @@ class Parser:
         return Parser.last_chunk_id() + 1
 
     @staticmethod
-    def save_chunk(chunk: dict, path: Path = CHUNK_DATA_PATH) -> None:
-        """
-        Saves a single chunk to the chunk_data.json file.
-        """
-        chunks = Parser._load_json(path)
-        chunk_id = str(chunk["chunk_id"])
-        chunks[chunk_id] = chunk
-        Parser._save_json(path, chunks)
+    def save_chunk_data(sender, timestamp, batch, chunk_id, message):
+        file_path = os.path.join(SAVE_DIR, f"{sender}_{timestamp}_{batch}.json")
+
+        if os.path.exists(file_path):
+            with open(file_path, "r") as f:
+                data = json.load(f)
+        else:
+            data = {}
+
+        data[str(chunk_id)] = message
+
+        with open(file_path, "w") as f:
+            json.dump(data, f)
 
     @staticmethod
     def get_chunks(data: bytes, chunk_size: int = 4096) -> list:
@@ -366,11 +371,17 @@ class Parser:
 
 
     @staticmethod
-    def reassemble_chunks(chunks: dict, batch_size: int) -> str:
-        """
-        Reassembles a message from ordered chunk data.
-        """
-        return ''.join(chunks.get(i, '') for i in range(1, batch_size + 1))
+    def reassemble_chunks(sender, timestamp, batch):
+        file_path = os.path.join(SAVE_DIR, f"{sender}_{timestamp}_{batch}.json")
+        if not os.path.exists(file_path):
+            return ""
+
+        with open(file_path, "r") as f:
+            data = json.load(f)
+
+        chunks = [data[key] for key in sorted(data, key=lambda x: int(x))]
+        return "".join([chunk.split("|", 1)[-1] if "|c" in chunk else chunk for chunk in chunks])
+
 
     @staticmethod
     def is_message_complete(chunks: dict, batch_size: int) -> bool:
