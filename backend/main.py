@@ -78,5 +78,4 @@ def get_checksum():
     return jsonify({"checksum": checksum})
 
 if __name__ == "__main__":
-    context = ('cert.pem', 'key.pem')  # Replace with your actual certificate and key
-    app.run(host="0.0.0.0", port=443, ssl_context=context)
+    app.run(host='0.0.0.0', port=5000, debug=True)
