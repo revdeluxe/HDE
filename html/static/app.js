@@ -123,14 +123,19 @@ function fetchMessages() {
 
 document.addEventListener("DOMContentLoaded", () => {
   usernamePrompt();
-  document.getElementById("sendButton").addEventListener("click", () => {
-    try {
-      message.preventDefault();
-      send();
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
-  });
+  let sendButton = document.getElementById("sendButton");
+  if (sendButton) {
+    sendButton.addEventListener("click", (event) => {
+      try {
+        event.preventDefault();  // <-- fixed: was `message.preventDefault()`
+        send();
+      } catch (error) {
+        console.error("Error sending message:", error);
+      }
+    });
+  } else {
+    console.warn("sendButton not found in DOM.");
+  }
   document.getElementById("messageInput").addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
       e.preventDefault(); // Prevent form submission
