@@ -19,23 +19,6 @@ function messageStatus(status) {
   }
 }
 
-function headers_status() {
-  fetch("/api/headers")
-    .then(response => {
-      if (!response.ok) throw new Error("Failed to fetch headers");
-      return response.json();
-    })
-    .then(data => {
-      const headersElement = document.getElementById("headers");
-      if (headersElement) {
-        headersElement.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-      }
-    })
-    .catch(error => {
-      console.error("Error fetching headers:", error);
-    });
-}
-
 async function getChecksum() {
   try {
     const response = await fetch("/api/checksum");
@@ -125,7 +108,6 @@ function fetchMessages() {
 document.addEventListener("DOMContentLoaded", async () => {
   const defaultUsername = "Guest";
   const user = usernamePrompt(defaultUsername);
-  headers_status();
 
   const sendButton = document.getElementById("sendButton");
   if (sendButton) {

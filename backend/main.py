@@ -133,17 +133,6 @@ async def auto_save_message_async(data: dict):
         await f.write(json.dumps(messages))
         await f.truncate()
 
-@app.route("/api/headers", methods=["GET"])
-def get_headers():
-    info = {
-        "RSSI": lora.get_rssi(),
-        "SNR": lora.get_snr(),
-        "RX_Mode": lora.get_mode() == "RX",
-        "TX_Queue_Depth": lora.get_tx_queue_depth(),
-        "Server_State": "Listening" if lora.get_mode() == "RX" else "Not Listening"
-    }
-    return jsonify({"status": "ok", "message": "Headers checked", "info": info})
-
 @app.route("/api/receive", methods=["POST"])
 def get_back_to_listening():
     lora.set_mode("RX")
