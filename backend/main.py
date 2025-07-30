@@ -25,6 +25,7 @@ stream = MessageStream()
 messages_dir = Path("messages")
 messages_file = messages_dir / "messages.json"
 to_send_file = messages_dir / "to_send.json"
+save_dir = Path("messages/saves")
 checksum = Parser.updated_messages_checksum(messages_file)
 from_user = Parser.parse_username(checksum)
 

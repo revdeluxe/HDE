@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime, time
 
 DATA_DIR = Path("messages")
+SAVE_DIR = DATA_DIR / "saves"
 TO_SEND_PATH = DATA_DIR / "to_send.json"
 CHUNK_DATA_PATH = DATA_DIR / "chunk_data.json"
 
