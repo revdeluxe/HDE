@@ -174,11 +174,10 @@ def send_message():
         print(f"[ERROR] {e}")
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/api/messages", methods=["GET"])
 def get_messages():
     # This should return recent messages from storage/logs
-    messages = load_recent_messages()  # Your function here
+    messages = MessageStream.load_messages()  # Your function here
     return jsonify({"data": messages})
 
 @app.route("/api/messages/<filename>", methods=["GET"])
