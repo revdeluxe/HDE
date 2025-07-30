@@ -2,6 +2,7 @@
 let from = document.getElementById("UsernameField").value;
 let messagesContainer = document.getElementById("messagesContainer");
 let cookie_name = getCookie("username");
+let checksum = "";
 
 function messageStatus(status) {
   const statusElement = document.getElementById("status-busy");
@@ -21,7 +22,6 @@ function messageStatus(status) {
 }
 
 function getChecksum() {
-  let checksum = "";
   fetch("/api/checksum")
     .then(response => {
       if (!response.ok) throw new Error("Network response was not ok");
@@ -61,6 +61,7 @@ function usernamePrompt(username) {
 
 function send(){
   const message = document.getElementById("messageInput").value;
+  checksum = getChecksum();
   if (!message) return;
   fetch(`/api/send/${encodeURIComponent(message)}`, {
     method: "POST",
