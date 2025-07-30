@@ -48,7 +48,7 @@ class MessageStream:
         for key in expired:
             del self.buffers[key]
 
-    def messages_path(self) -> Path:
+    def messages_path() -> Path:
         """
         Returns the path to the messages.json file.
         """
