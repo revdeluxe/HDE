@@ -1,11 +1,1 @@
-{
-    "from": "HDE Team",
-    "timestamp": 1625251200,
-    "chunk_batch": 1,
-    "chunk": [
-        {
-            "id": 1,
-            "message": "Hello HDE Users, we have some updates for you!"
-        }
-    ]
-}
+{"from": "HDE Team", "timestamp": 1625251200, "chunk_batch": 1, "chunk": [{"id": 1, "message": "Hello HDE Users, we have some updates for you!"}]}
