@@ -136,7 +136,7 @@ async def auto_save_message_async(data: dict):
 
 @app.route("/api/receive", methods=["POST"])
 def get_back_to_listening():
-    lora.set_mode("RX")
+    lora.set_mode_rx()
     time.sleep(1)  # Allow some time for LoRa to switch modes
     if lora.receive():
         packet = lora.read()
