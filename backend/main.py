@@ -1,89 +1,82 @@
-# main.py
+# main_flask.py
 
-from unittest import result
-from fastapi import FastAPI, HTTPException, Request, Response, Cookie
-from fastapi.responses import JSONResponse, FileResponse
-from pydantic import BaseModel
+from flask import Flask, jsonify, request, send_from_directory, abort
 from pathlib import Path
 import json
 import time
+import os
+
 from parser import Parser
 from stream import MessageStream
 from pyLoRa.configure import run_checks
 from pyLoRa.lora_handler import LoRaGPIOHandler
 from pyLoRa.lora_module import LoRa
 
-# Initialize LoRa handler
+# Initialize Flask and LoRa
+app = Flask(__name__)
 lora = LoRa()
-app = FastAPI()
 lora.reset()
 lora.set_frequency(433)
 lora.set_tx_power(14)
+
 messages_dir = Path("messages")
 messages_file = messages_dir / "messages.json"
 to_send_file = messages_dir / "to_send.json"
-stream = MessageStream(timeout=120)  # 2-minute timeout for chunked messages
+stream = MessageStream(timeout=120)
 checksum = Parser.updated_messages_checksum(messages_file)
 from_user = Parser.parse_username(checksum)
 
-async def send_via_lora(message: str):
-    result = await lora.send_message(message)
+def send_via_lora(message: str):
+    result = lora.send(message)
     if not result:
-        return JSONResponse(status_code=500, content={"status": "error", "message": "Failed to send message"})
-    return JSONResponse(content={"status": "ok"})
+        return jsonify({"status": "error", "message": "Failed to send message"}), 500
+    return jsonify({"status": "ok"})
 
-# parse_message first to ensure data is uniform and the parser would not fail
-async def auto_save_message(data: dict):
-    if not Parser.is_messages_dir(messages_dir): 
-        messages_dir.mkdir(parents=True, exist_ok=True)
-    else:
-        with open(messages_file, "r+") as f:
-            messages = json.load(f)
-            messages.append({"sender": data.get("sender"), "message": data.get("message"), "timestamp": time.time()})
-            f.seek(0)
-            json.dump(messages, f)
+def auto_save_message(data: dict):
+    messages_dir.mkdir(parents=True, exist_ok=True)
 
-@app.get("/api/working_directory")
-async def get_working_directory():
-    import os
-    return {"cwd": os.getcwd()}
+    if not messages_file.exists():
+        messages_file.write_text("[]")
 
-@app.get("/service-offline.html")
-async def service_offline():
-    return FileResponse("../html/service-offline.html")
+    with open(messages_file, "r+") as f:
+        messages = json.load(f)
+        messages.append({
+            "sender": data.get("sender"),
+            "message": data.get("message"),
+            "timestamp": time.time()
+        })
+        f.seek(0)
+        json.dump(messages, f)
+        f.truncate()
 
-@app.get("/")
-async def index():
-    return FileResponse("../html/index.html")
+@app.route("/api/working_directory")
+def get_working_directory():
+    return jsonify({"cwd": os.getcwd()})
 
-@app.post("/api/send/{message}")
-async def send_message(message: str):
+@app.route("/service-offline.html")
+def service_offline():
+    return send_from_directory("../html", "service-offline.html")
+
+@app.route("/")
+def index():
+    return send_from_directory("../html", "index.html")
+
+@app.route("/api/send/<message>", methods=["POST"])
+def send_message(message):
     if not message:
-        raise HTTPException(status_code=400, detail="Message content is required")
+        abort(400, description="Message content is required")
 
-    # Process and send the message
-    result = await send_via_lora(message)
-    if not result:
-        raise HTTPException(status_code=500, detail="Failed to send message")
+    result = send_via_lora(message)
+    return result
 
-    return JSONResponse(content=result)
+@app.route("/api/messages")
+def get_messages():
+    return jsonify({"data": MessageStream.load_messages(messages_file)})
 
-@app.get("/api/messages")
-async def get_messages():
-    return JSONResponse(content={"data": MessageStream.load_messages(messages_file)})
-
-@app.get("/api/checksum")
-async def get_checksum():
-    return JSONResponse(content={"checksum": checksum})
+@app.route("/api/checksum")
+def get_checksum():
+    return jsonify({"checksum": checksum})
 
 if __name__ == "__main__":
-    import asyncio
-    from uvicorn import Config, Server
-
-    async def start_server():
-        config = Config(app=app, host="0.0.0.0", port=5000, log_level="info", reload=False)
-        server = Server(config)
-        await server.serve()
-
-    asyncio.run(start_server())
-
+    context = ('cert.pem', 'key.pem')  # Replace with your actual certificate and key
+    app.run(host="0.0.0.0", port=443, ssl_context=context)
