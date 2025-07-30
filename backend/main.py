@@ -190,7 +190,7 @@ def get_messages():
 def source_messages(filename):
     path = os.path.join("messages", filename)
     if not os.path.exists(path):
-        return jsonify({"data": []}), 404
+        return jsonify({"data": []}), 200
 
     async def read():
         async with aiofiles.open(path, mode='r') as f:
