@@ -1,7 +1,39 @@
 // static/app.js
 let from = document.getElementById("UsernameField").value;
 let messagesContainer = document.getElementById("messagesContainer");
-let checksum = "";
+
+function messageStatus(status) {
+  const statusElement = document.getElementById("status-busy");
+  if (status === "sending") {
+    statusElement.textContent = "Sending...";
+    statusElement.className = "pending";
+  } else if (status === "LoRa failed") {
+    statusElement.textContent = "LoRa failed";
+    statusElement.className = "error";
+  } else if (status === "sent") {
+    statusElement.textContent = "Message sent successfully";
+    statusElement.className = "synced";
+  } else {
+    statusElement.textContent = "General Failure";
+    statusElement.className = "error";
+  }
+}
+
+function getChecksum() {
+  let checksum = "";
+  fetch("/api/checksum")
+    .then(response => {
+      if (!response.ok) throw new Error("Network response was not ok");
+      return response.json();
+    })
+    .then(data => {
+      checksum = data.checksum;
+    })
+    .catch(error => {
+      console.error("Error fetching checksum:", error);
+    });
+  return checksum;
+}
 
 function getCookie(name) {
   const match = document.cookie.match(
@@ -49,6 +81,13 @@ function send(){
   });
 }
 
+function sentMessage(name) {
+    const messageElement = document.createElement("div");
+    messageElement.className = "message";
+    messageElement.innerHTML = `<strong>${name}</strong>: <span class="status">Message sent successfully</span>`;
+    messagesContainer.appendChild(messageElement);
+}
+
 function fetchMessages() {
   fetch("/api/messages")
     .then(response => {
@@ -58,10 +97,23 @@ function fetchMessages() {
     .then(data => {
       messagesContainer.innerHTML = ""; // Clear previous messages
       data.forEach(msg => {
+        let from_user = msg.from_user;
+        let msgStatus = msg.msg_status;
         const messageElement = document.createElement("div");
-        messageElement.className = "message";
-        messageElement.innerHTML = `<strong>${msg.sender}</strong>: ${msg.message} <span class="timestamp">${new Date(msg.timestamp * 1000).toLocaleTimeString()}</span>`;
-        messagesContainer.appendChild(messageElement);
+        if (msg.from === from_user) { // Sent message
+          messageElement.innerHTML = `<strong>${msg.from}</strong>: ${msg.message}`;
+          messageElement.className = "sent";
+          messageStatus(msgStatus);
+          const statusElement = document.createElement("span");
+          statusElement.className = "status";
+          statusElement.innerHTML = `<span class="status">Message sent successfully</span>`;
+          messagesContainer.appendChild(statusElement);
+          messagesContainer.appendChild(messageElement);
+        } else { // Received message
+          messageElement.innerHTML = `<strong>${msg.from}</strong>: ${msg.message}`;
+          messageElement.className = "messageReceived";
+          messagesContainer.appendChild(messageElement);
+        }
       });
     })
     .catch(error => {

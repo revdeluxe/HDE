@@ -25,6 +25,8 @@ messages_dir = Path("messages")
 messages_file = messages_dir / "messages.json"
 to_send_file = messages_dir / "to_send.json"
 stream = MessageStream(timeout=120)  # 2-minute timeout for chunked messages
+checksum = Parser.updated_messages_checksum(messages_file)
+from_user = Parser.parse_username(checksum)
 
 async def send_via_lora(message: str):
     result = await lora.send_message(message)
@@ -39,7 +41,6 @@ async def auto_save_message(data: dict):
     else:
         with open(messages_file, "r+") as f:
             messages = json.load(f)
-
             messages.append({"sender": data.get("sender"), "message": data.get("message"), "timestamp": time.time()})
             f.seek(0)
             json.dump(messages, f)
@@ -50,7 +51,7 @@ async def send_message(message: str):
         raise HTTPException(status_code=400, detail="Message content is required")
 
     # Process and send the message
-    result = await lora.send_message(message)
+    result = await send_via_lora(message)
     if not result:
         raise HTTPException(status_code=500, detail="Failed to send message")
 
@@ -62,24 +63,18 @@ async def get_messages(checksum: str):
         json_response = {"status": "304", "message": "Checksum mismatch, Expected Requesting update of messages", "expected": Parser.updated_messages_checksum(messages_file), "received": checksum}
         raise JSONResponse(json_response)
 
-    if messages_file.exists():
+    if not MessageStream.load_messages(messages_file):
+        return JSONResponse(status_code=404, content={"status": "404", "message": "No messages found"})
+    else:
         with open(messages_file, "r") as f:
+            checksum = Parser.updated_messages_checksum(messages_file)
+            from_user = Parser.parse_username(checksum)
             messages = json.load(f)
-            return JSONResponse(content={"status": "ok", "messages": messages})
+        return JSONResponse(content={"status": "200","user": from_user, "messages": messages, "checksum": checksum, "status": "sent"})
 
-@app.post("/api/receive")
-async def receive_message(request: Request):  
-    try:
-        data = await request.json()
-        sender = data.get("sender")
-        message = data.get("message")
-        if not sender or not message:
-            raise HTTPException(status_code=400, detail="Sender and message are required")
-        
-        await auto_save_message(data)
-        return JSONResponse(content={"status": "ok", "message": "Message received"})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/checksum")
+async def get_checksum():
+    return JSONResponse(content={"checksum": checksum})
 
 if __name__ == "__main__":
     import asyncio

@@ -68,6 +68,31 @@ class Parser:
         except Exception as e:
             result["error"] = str(e)
             return result
+        
+    @staticmethod
+    def parse_username(checksum: str) -> str:
+        """
+        Parses a username from a checksum string.
+        Example: "user:john_doe|checksum:1234567890"
+        """
+        if not checksum or "|" not in checksum:
+            return None
+
+        parts = checksum.split("|")
+        for part in parts:
+            if part.startswith("user:"):
+                return part.split(":", 1)[1].strip()
+        return None
+        
+    @staticmethod
+    def updated_messages_checksum(path: Path) -> str:
+        """
+        Returns the CRC32 checksum of messages.json.
+        If file does not exist, returns "FILE_NOT_FOUND".
+        """
+        if not path.exists():
+            return "FILE_NOT_FOUND"
+        return Parser.file_crc32(path)
 
     @staticmethod
     def file_crc32(path: Path) -> str:

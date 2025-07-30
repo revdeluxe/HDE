@@ -3,7 +3,7 @@
 import time
 import json
 from pathlib import Path
-from parser import reassemble_chunks, is_message_complete
+from parser import Parser
 
 class MessageStream:
     def __init__(self, timeout=60):
@@ -31,8 +31,8 @@ class MessageStream:
         buf["chunks"][chunk_id] = message
         buf["timestamp"] = time.time()
 
-        if is_message_complete(buf["chunks"], buf["batch"]):
-            full_message = reassemble_chunks(buf["chunks"], buf["batch"])
+        if Parser.is_message_complete(buf["chunks"], buf["batch"]):
+            full_message = Parser.reassemble_chunks(buf["chunks"], buf["batch"])
             del self.buffers[sender]
             return full_message
 
