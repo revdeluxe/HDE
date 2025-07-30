@@ -125,6 +125,7 @@ function fetchMessages() {
 document.addEventListener("DOMContentLoaded", async () => {
   const defaultUsername = "Guest";
   const user = usernamePrompt(defaultUsername);
+  headers_status();
 
   const sendButton = document.getElementById("sendButton");
   if (sendButton) {
