@@ -161,25 +161,40 @@ def get_back_to_listening():
 def get_working_directory():
     return jsonify({"cwd": os.getcwd()})
 
-@app.route("/api/send/<message>", methods=["POST"])
-def send_message(message):
+@app.route("/api/send", methods=["POST"])
+def send_message():
+    data = request.get_json()
+    message = data.get("message")
     if not message:
-        abort(400, description="Message content is required")
+        return jsonify({"error": "No message provided"}), 400
+    try:
+        lora.send(message)
+        return jsonify({"status": "sent", "message": message})
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        return jsonify({"error": str(e)}), 500
 
-    result = send_via_lora(message)
-    auto_save_message([Parser.prepare({
-        "from": from_user,
-        "message": message,
-        "checksum": checksum,
-        "chunk_id": 1,
-        "chunk_batch": 1,
-        "timestamp": int(time.time())
-    })])
-    return result
 
 @app.route("/api/messages", methods=["GET"])
 def get_messages():
-    return jsonify({"data": stream.load_messages()})
+    # This should return recent messages from storage/logs
+    messages = load_recent_messages()  # Your function here
+    return jsonify({"data": messages})
+
+@app.route("/api/messages/<filename>", methods=["GET"])
+def get_messages(filename):
+    path = os.path.join("messages", filename)
+    if not os.path.exists(path):
+        return jsonify({"data": []}), 404
+
+    async def read():
+        async with aiofiles.open(path, mode='r') as f:
+            lines = await f.readlines()
+            return [json.loads(line.strip()) for line in lines if line.strip()]
+    
+    messages = asyncio.run(read())
+    return jsonify({"data": messages})
+
 
 @app.route("/api/checksum")
 def get_checksum():
