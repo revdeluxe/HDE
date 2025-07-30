@@ -342,7 +342,7 @@ class Parser:
         file_path = os.path.join(SAVE_DIR, f"{sender}_{timestamp}_{batch}.json")
 
         if os.path.exists(file_path):
-            with open(file_path, "r") as f:
+            with open(file_path, "a") as f:
                 data = json.load(f)
         else:
             data = {}
