@@ -69,7 +69,7 @@ async def send_message(message: str):
     return JSONResponse(content=result)
 
 @app.get("/api/messages/{checksum}")
-async def get_messages(checksum: str):
+async def get_latest_messages(checksum: str):
     expected_checksum = Parser.updated_messages_checksum(messages_file)
     
     if checksum != expected_checksum:
@@ -103,6 +103,10 @@ async def get_messages(checksum: str):
             "msg_status": "sent"
         }
     )
+
+@app.get("/api/messages")
+async def get_messages():
+    return JSONResponse(content={"messages": MessageStream.load_messages(messages_file), "checksum": checksum})
 
 @app.get("/api/checksum")
 async def get_checksum():
