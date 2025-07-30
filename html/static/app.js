@@ -24,7 +24,7 @@ function headers_status() {
     .then(response => {
       if (!response.ok) throw new Error("Failed to fetch headers");
       return response.json();
-    }
+    })
     .then(data => {
       const headersElement = document.getElementById("headers");
       if (headersElement) {
