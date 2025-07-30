@@ -44,19 +44,18 @@ function getCookie(name) {
 }
 
 function usernamePrompt(username) {
-  let uname = cookie_name;
-  if (cookie_name) {
-    document.cookie = `username=${encodeURIComponent(cookie_name)}; path=/;`;
-    document.getElementById("UsernameField").innerHTML = cookie_name;
-    document.getElementById("UsernameField").value = cookie_name;
-    uname = cookie_name;
+  let uname = getCookie("username");
+  if (uname) {
+    document.getElementById("UsernameField").innerHTML = uname;
+    document.getElementById("UsernameField").value = uname;
+  } else {
+    uname = prompt("Please enter your username:") || username;
+    if (uname) {
+      document.cookie = `username=${encodeURIComponent(uname)}; path=/;`;
+      document.getElementById("UsernameField").innerHTML = uname;
+      document.getElementById("UsernameField").value = uname;
+    }
   }
-  if (uname != username) {
-    uname = prompt("Please enter your username:");
-  }else {
-    uname = username;
-  }
-
   return uname;
 }
 
