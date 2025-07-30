@@ -9,7 +9,6 @@ import os
 from parser import Parser
 from stream import MessageStream
 from pyLoRa.configure import run_checks
-from pyLoRa.lora_handler import LoRaGPIOHandler
 from pyLoRa.lora_module import LoRa
 
 # Initialize Flask and LoRa
