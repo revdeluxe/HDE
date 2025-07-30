@@ -154,7 +154,7 @@ def send_lora_message():
     try:
         data = request.json
         raw_message = data.get("message", "")
-
+        print(f"[INFO] Received message to send: {raw_message}")
         parsed = Parser.parse_message(raw_message)
         if not parsed["valid"]:
             return jsonify({"status": "error", "message": parsed["error"]}), 400
