@@ -1,6 +1,7 @@
 // static/app.js
 let from = document.getElementById("UsernameField").value;
 let messagesContainer = document.getElementById("messagesContainer");
+let message = document.getElementById("messageInput").value;
 let cookie_name = getCookie("username");
 let checksum = "";
 
@@ -59,9 +60,7 @@ function usernamePrompt(username) {
   return uname;
 }
 
-function send(){
-  const message = document.getElementById("messageInput").value;
-  schecksum = getChecksum();
+function send() {
   if (!message) return;
   fetch(`/api/send/${encodeURIComponent(message)}`, {
     method: "POST",
@@ -69,23 +68,24 @@ function send(){
       "Content-Type": "application/json",
       "X-CSRF-Token": getCookie("csrftoken"),
     },
-    body: JSON.stringify(
-      { from },
-      { message },
-      { schecksum }
-    ),
+    body: JSON.stringify({
+      from,
+      message,
+      checksum,
+    }),
   })
-  .then(response => {
-    if (!response.ok) throw new Error("Network response was not ok");
-    return response.json();
-  })
-  .then(data => {
-    console.log("Message sent successfully:", data);
-  })
-  .catch(error => {
-    console.error("Error sending message:", error);
-  });
+    .then(response => {
+      if (!response.ok) throw new Error("Network response was not ok");
+      return response.json();
+    })
+    .then(data => {
+      console.log("Message sent successfully:", data);
+    })
+    .catch(error => {
+      console.error("Error sending message:", error);
+    });
 }
+
 
 function sentMessage(name) {
     const messageElement = document.createElement("div");
