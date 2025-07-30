@@ -93,13 +93,7 @@ function sentMessage(name) {
 
 function fetchMessages() {
   checksum = getChecksum();
-  fetch(`/api/messages/${checksum}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "X-CSRF-Token": getCookie("csrftoken"),
-    },
-  })
+  fetch("/api/messages/" + checksum)
     .then(response => {
       if (!response.ok) throw new Error("Network response was not ok");
       return response.json();
