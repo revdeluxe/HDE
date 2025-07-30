@@ -1,9 +1,13 @@
-# stream.py
-
 import time
 import json
 from pathlib import Path
 from parser import Parser
+
+try:
+    import aiofiles
+except ImportError:
+    aiofiles = None  # Fallback if async isn't required
+
 
 class MessageStream:
     def __init__(self, timeout=60):
@@ -50,17 +54,19 @@ class MessageStream:
             del self.buffers[key]
 
     def load_messages(self):
+        """
+        Loads messages synchronously.
+        """
         if not self._path.is_file():
             return []
-        with open(self._path, "r") as f:
+        with self._path.open("r", encoding="utf-8") as f:
             return json.load(f)
 
     def save_message(self, sender: str, message: str, timestamp: int):
         """
-        Saves a fully reassembled message to messages.json.
+        Saves a fully reassembled message synchronously.
         """
-        path = self.messages_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
 
         new_entry = {
             "from": sender,
@@ -72,7 +78,39 @@ class MessageStream:
         messages = self.load_messages()
         messages.append(new_entry)
 
-        with path.open("w", encoding="utf-8") as f:
+        with self._path.open("w", encoding="utf-8") as f:
             json.dump(messages, f, indent=2)
+
+        return new_entry
+
+    # Optional async versions if aiofiles is available
+    async def load_messages_async(self):
+        if not aiofiles or not self._path.is_file():
+            return []
+        async with aiofiles.open(self._path, "r", encoding="utf-8") as f:
+            content = await f.read()
+            return json.loads(content)
+
+    async def save_message_async(self, sender: str, message: str, timestamp: int):
+        """
+        Saves a fully reassembled message asynchronously using aiofiles.
+        """
+        if not aiofiles:
+            raise RuntimeError("aiofiles is not available")
+
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+
+        new_entry = {
+            "from": sender,
+            "message": message,
+            "timestamp": timestamp,
+            "timestamp_human": time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(timestamp))
+        }
+
+        messages = await self.load_messages_async()
+        messages.append(new_entry)
+
+        async with aiofiles.open(self._path, "w", encoding="utf-8") as f:
+            await f.write(json.dumps(messages, indent=2))
 
         return new_entry

@@ -6,15 +6,18 @@ import json
 import time
 import os
 import atexit
+import aiofiles
+import asyncio
 
 from parser import Parser
 from stream import MessageStream
 from pyLoRa.configure import run_checks
 from pyLoRa.lora_module import LoRa
+from threading import Lock
 lora = LoRa()
 # Initialize Flask and LoRa
 app = Flask(__name__)
-
+file_lock = Lock()
 lora.reset()
 lora.set_frequency(433)
 lora.set_tx_power(14)
@@ -26,27 +29,121 @@ checksum = Parser.updated_messages_checksum(messages_file)
 from_user = Parser.parse_username(checksum)
 
 def send_via_lora(message: str):
-    result = lora.send(message)
-    if not result:
-        return jsonify({"status": "error", "message": "Failed to send message"}), 500
+    batch_id = Parser.generate_batch_id(to_send_file)
+    chunk_id = Parser.generate_chunk_id(to_send_file)
+    timestamp = int(time.time())
+
+    # Prepare single or multiple chunks
+    chunks = Parser.split_into_chunks(message) if Parser.should_it_be_in_batches(message) else [message]
+
+    prepared_data = {
+        "from": from_user,
+        "timestamp": timestamp,
+        "batch": batch_id,
+        "chunk": []
+    }
+
+    for i, c in enumerate(chunks, start=1):
+        prepared_data["chunk"].append({
+            "id": i,
+            "message": c
+        })
+
+    encoded_message = Parser.prepare(prepared_data)
+
+    # Send each chunked message (could also send full JSON if small enough)
+    lora.set_mode("TX")
+    if isinstance(encoded_message, list):
+        for msg in encoded_message:
+            lora.send(msg)
+    else:
+        lora.send(encoded_message)
+
     return jsonify({"status": "ok"})
 
-def auto_save_message(data: dict):
+
+def parse_heard_data(data: str):
+    """
+    Parses the received LoRa data and returns a structured dictionary.
+    """
+    parsed = Parser.parse_message(data)
+    if not parsed["valid"]:
+        return None
+
+    chunk_data = parsed["fields"].get("chunk")
+    if Parser.is_it_in_batches(parsed):
+        Parser.reassemble_chunks(parsed["fields"])
+        chunk_id, chunk_message = extract_chunk_info(chunk_data)
+    else:
+        # fallback to flat message
+        chunk_id, chunk_message = (1, parsed["fields"].get("message", ""))
+
+    return {
+        "sender": parsed["fields"].get("from"),
+        "timestamp": int(parsed["fields"].get("timestamp", time.time())),
+        "chunk_batch": parsed["fields"].get("batch", 0),
+        "chunk_id": chunk_id,
+        "chunk_message": chunk_message
+    }
+
+
+def extract_chunk_info(chunks):
+    if not chunks or len(chunks) == 0:
+        return (0, "")
+    return (chunks[0].get("id", 0), chunks[0].get("message", ""))
+
+
+def parse_send_data(data: str):
+    """
+    Parses the data to be sent via LoRa and returns a structured dictionary.
+    """
+    parsed = Parser.parse_message(data)
+    if not parsed["valid"]:
+        return None
+
+    chunk_data = parsed["fields"].get("chunk")
+    chunk_id, chunk_message = extract_chunk_info(chunk_data)
+
+    return {
+        "from": parsed["fields"].get("from"),
+        "checksum": parsed["fields"].get("checksum"),
+        "timestamp": int(parsed["fields"].get("timestamp", time.time())),
+        "chunk_batch": parsed["fields"].get("batch", 0),
+        "chunk_id": chunk_id,
+        "chunk_message": chunk_message
+    }
+
+async def auto_save_message_async(data: dict):
     messages_dir.mkdir(parents=True, exist_ok=True)
 
     if not messages_file.exists():
-        messages_file.write_text("[]")
+        messages_file.write_text("[]")  # Optional: make this async too
 
-    with open(messages_file, "r+") as f:
-        messages = json.load(f)
-        messages.append({
-            "sender": data.get("sender"),
-            "message": data.get("message"),
-            "timestamp": time.time()
-        })
-        f.seek(0)
-        json.dump(messages, f)
-        f.truncate()
+    mdata = Parser.prepare(data)
+
+    async with aiofiles.open(messages_file, "r+") as f:
+        content = await f.read()
+        try:
+            messages = json.loads(content)
+        except json.JSONDecodeError:
+            messages = []
+        messages.append(mdata)
+
+        await f.seek(0)
+        await f.write(json.dumps(messages))
+        await f.truncate()
+
+@app.route("/api/receive", methods=["POST"])
+def get_back_to_listening():
+    lora.set_mode("RX")
+    time.sleep(1)  # Allow some time for LoRa to switch modes
+    if lora.receive():
+        packet = lora.read()
+        data = parse_heard_data(packet)
+        print("📥 New packet received:", data)
+        if data:
+            asyncio.run(auto_save_message_async(data))
+    return jsonify({"status": "ok", "message": "Switched back to listening mode"})
 
 @app.route("/api/working_directory")
 def get_working_directory():
@@ -58,15 +155,19 @@ def send_message(message):
         abort(400, description="Message content is required")
 
     result = send_via_lora(message)
-    auto_save_message({
-        message,
+    auto_save_message([Parser.prepare({
+        "from": from_user,
+        "message": message,
+        "checksum": checksum,
+        "chunk_id": 1,
+        "chunk_batch": 1,
         "timestamp": int(time.time())
-    })
+    })])
     return result
 
 @app.route("/api/messages", methods=["GET"])
 def get_messages():
-    return jsonify({"data": stream.load_messages()})
+    return jsonify({"data": stream.load_messages(), "batch": stream.load_chunks()})
 
 @app.route("/api/checksum")
 def get_checksum():

@@ -1,8 +1,12 @@
 # parser.py
 
-import hashlib
+import hashlib, json, re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, time
+
+DATA_DIR = Path("messages")
+TO_SEND_PATH = DATA_DIR / "to_send.json"
+CHUNK_DATA_PATH = DATA_DIR / "chunk_data.json"
 
 class Parser:
     def __init__(self):
@@ -15,6 +19,24 @@ class Parser:
         for char in payload:
             crc ^= ord(char)
         return format(crc, "02X")
+    
+    @staticmethod
+    def prepare(data: dict) -> str:
+        """
+        Prepares a structured LoRa message with CRC.
+        Example: "from:node1|message:Hello|chunk_id:1|chunk_batch:3|timestamp:1722250340*AB"
+        """
+        fields = [
+            f"from:{data['from']}",
+            f"message:{data['message']}",
+            f"checksum:{data['checksum']}",
+            f"chunk_id:{data['chunk_id']}",
+            f"chunk_batch:{data['chunk_batch']}",
+            f"timestamp:{data['timestamp']}"
+        ]
+        payload = "|".join(fields)
+        crc = Parser.calculate_crc(payload)
+        return f"{payload}*{crc}"
 
     @staticmethod
     def parse_message(raw: str) -> dict:
@@ -23,10 +45,12 @@ class Parser:
         Example: "from:node1|message:Hello|chunk_id:1|chunk_batch:3|timestamp:1722250340*AB"
         """
         result = {
-            "original": raw,
+            "from": None,
+            "timestamp": None,
+            "batch": None,
+            "chunk": [],
             "valid": False,
-            "error": None,
-            "fields": {}
+            "error": None
         }
 
         try:
@@ -42,25 +66,39 @@ class Parser:
                 return result
 
             # Split fields by |
-            parts = payload.split("|")
-            for part in parts:
-                if ":" not in part:
+            fields = payload.split("|")
+            for field in fields:
+                if ":" not in field:
                     continue
-                key, value = part.split(":", 1)
-                result["fields"][key.strip()] = value.strip()
+                key, value = field.split(":", 1)
+                if key == "from":
+                    result["from"] = value
+                elif key == "timestamp":
+                    try:
+                        result["timestamp"] = int(value)
+                    except ValueError:
+                        result["error"] = "Invalid timestamp format."
+                        return result
+                elif key == "chunk_batch":
+                    try:
+                        result["batch"] = int(value)
+                    except ValueError:
+                        result["error"] = "Invalid chunk batch format."
+                        return result
+                elif key == "message":
+                    # If message contains multiple chunks
+                    if "|c" in value:
+                        chunks = re.findall(r"\|c(\d+)\|([^|]+)", value)
+                        for cid, msg in chunks:
+                            result["chunk"].append({"id": int(cid), "message": msg})
+                            time.sleep(1)  # Simulate processing delay
+                    else:
+                        result["chunk"].append({"id": 1, "message": value})
 
             # Basic validation
-            required = ["from", "message", "chunk_id", "chunk_batch", "timestamp"]
-            for key in required:
-                if key not in result["fields"]:
-                    result["error"] = f"Missing field: {key}"
-                    return result
-
-            # Type conversions
-            result["fields"]["chunk_id"] = int(result["fields"]["chunk_id"])
-            result["fields"]["chunk_batch"] = int(result["fields"]["chunk_batch"])
-            result["fields"]["timestamp"] = int(result["fields"]["timestamp"])
-            result["fields"]["timestamp_human"] = datetime.fromtimestamp(result["fields"]["timestamp"]).isoformat()
+            if not result["from"] or not result["timestamp"] or not result["batch"]:
+                result["error"] = "Missing required fields."
+                return result
 
             result["valid"] = True
             return result
@@ -154,36 +192,191 @@ class Parser:
         return True
 
     @staticmethod
+    def should_it_be_in_batches(batch: dict, max_chunk_size: int = 240) -> bool:
+        """
+        Determines if the data should be sent in batches based on size.
+        """
+        chunks = batch.get("chunks", [])
+        chunk_size = sum(len(chunk.encode('utf-8')) for chunk in chunks)
+        total_size = len(batch.get("message", "").encode('utf-8'))
+
+        if chunk_size <= 0 or total_size <= 0:
+            return False
+
+        if total_size > max_chunk_size:
+            return True
+
+        return False
+    
+    @staticmethod
+    def split_into_chunks(message: str, max_size: int = 240) -> list:
+        """
+        Splits the message into UTF-8 safe chunks not exceeding `max_size` bytes.
+        Adds a marshal to identify if data is a split chunk with chunk identifiers.
+        """
+        chunks = []
+        current_chunk = ""
+        chunk_id = 1
+
+        for char in message:
+            # Check if adding the char exceeds the byte limit
+            if len((current_chunk + char).encode('utf-8')) > max_size:
+                chunks.append(f"|c{chunk_id}|{current_chunk}")
+                current_chunk = char
+                chunk_id += 1
+            else:
+                current_chunk += char
+
+        if current_chunk:
+            chunks.append(f"|c{chunk_id}|{current_chunk}")
+
+        return chunks
+
+    @staticmethod
+    def is_it_in_batches(message: str, max_size: int = 240) -> bool:
+        """
+        Checks if the message is already split into chunks or contains a split chunk marshal.
+        """
+        if not message:
+            return False
+
+        # Check for split chunk marshal pattern
+        if any(f"|c{i}|" in message for i in range(1, 1000)):  # Arbitrary upper limit for chunk IDs
+            return True
+
+        # Check if the message exceeds the maximum size
+        if len(message.encode('utf-8')) > max_size:
+            return True
+
+        return False
+
+    @staticmethod
+    def _load_json(path: Path) -> dict:
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {}
+        except json.JSONDecodeError:
+            return {}
+
+    @staticmethod
+    def _save_json(path: Path, data: dict) -> None:
+        with open(path, "w") as f:
+            json.dump(data, f, indent=4)
+
+    @staticmethod
+    def load_chunk(chunk_batch: int) -> dict:
+        """
+        Loads a specific chunk batch from chunk_data.json.
+        """
+        chunks = Parser._load_json(Parser.CHUNK_DATA_PATH)
+        return chunks.get(str(chunk_batch), {})
+
+    @staticmethod
+    def last_chunk_id(path: Path = TO_SEND_PATH) -> int:
+        """
+        Returns the last chunk ID from the to_send.json file.
+        """
+        chunks = Parser._load_json(path)
+        return max((int(k) for k in chunks), default=0)
+
+    @staticmethod
+    def last_batch_id(path: Path = TO_SEND_PATH) -> int:
+        """
+        Returns the last batch ID from the to_send.json file.
+        """
+        chunks = Parser._load_json(path)
+        return max((int(v.get("chunk_batch", 0)) for v in chunks.values()), default=0)
+
+    @staticmethod
+    def generate_batch_id() -> int:
+        """
+        Generates a new batch ID based on the last one.
+        """
+        return Parser.last_batch_id() + 1   
+
+    @staticmethod
+    def batch_chunks(chunks: list, batch_size: int, sender: str) -> dict:
+        """
+        Groups chunks into batches with specified size and includes metadata.
+        """
+        batch_id = Parser.last_batch_id() + 1
+        batch = {}
+        timestamp = int(datetime.now().timestamp())
+
+        for i, chunk in enumerate(chunks):
+            chunk_id = i + 1
+            batch[chunk_id] = {
+                "from": sender,
+                "message": chunk,
+                "chunk_id": chunk_id,
+                "chunk_batch": batch_id,
+                "timestamp": timestamp
+            }
+
+        return {
+            "from": sender,
+            "timestamp": timestamp,
+            "batch": batch_id,
+            "chunk": list(batch.values())
+        }
+
+    @staticmethod
+    def get_batch_chunks(batch: int, path: Path = TO_SEND_PATH) -> dict:
+        """
+        Loads a specific batch of chunks from the to_send.json file.
+        """
+        chunks = Parser._load_json(path)
+        return {k: v for k, v in chunks.items() if int(k) <= batch}
+
+    @staticmethod
+    def generate_chunk_id() -> int:
+        """
+        Generates a unique chunk ID based on last_chunk_id.
+        """
+        return Parser.last_chunk_id() + 1
+
+    @staticmethod
+    def save_chunk(chunk: dict, path: Path = CHUNK_DATA_PATH) -> None:
+        """
+        Saves a single chunk to the chunk_data.json file.
+        """
+        chunks = Parser._load_json(path)
+        chunk_id = str(chunk["chunk_id"])
+        chunks[chunk_id] = chunk
+        Parser._save_json(path, chunks)
+
+    @staticmethod
     def get_chunks(data: bytes, chunk_size: int = 4096) -> list:
         """
-        Splits a byte string into chunks of specified size (default 4096 bytes).
+        Splits a byte string into fixed-size chunks.
         """
         return [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
 
     @staticmethod
     def reassemble_chunks(chunks: dict, batch_size: int) -> str:
         """
-        Reassembles a complete message from a dict of chunks. Fills gaps with empty string.
+        Reassembles a message from ordered chunk data.
         """
-        return ''.join([chunks.get(i, '') for i in range(1, batch_size + 1)])
+        return ''.join(chunks.get(i, '') for i in range(1, batch_size + 1))
 
     @staticmethod
     def is_message_complete(chunks: dict, batch_size: int) -> bool:
         """
-        Checks whether all chunks are present in a message batch.
+        Checks if all expected chunks are present.
         """
         return all(i in chunks for i in range(1, batch_size + 1))
 
     @staticmethod
     def repair_message(existing_chunks: dict, incoming_chunk: dict) -> tuple:
         """
-        Attempts to repair an incomplete message by updating the chunk if valid.
-        Returns the updated chunk map and a flag if message is now complete.
+        Attempts to repair a message by updating with a new chunk.
         """
         chunk_id = incoming_chunk["chunk_id"]
-        chunk_batch = incoming_chunk["chunk_batch"]
         message_part = incoming_chunk["message"]
+        batch_size = incoming_chunk["chunk_batch"]
 
         existing_chunks[chunk_id] = message_part
-        complete = Parser.is_message_complete(existing_chunks, chunk_batch)
+        complete = Parser.is_message_complete(existing_chunks, batch_size)
         return existing_chunks, complete
