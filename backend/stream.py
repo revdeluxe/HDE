@@ -10,6 +10,7 @@ class MessageStream:
         """
         Handles chunked LoRa message reassembly and storage.
         """
+        self._path = Path("backend/messages/messages.json")
         self.buffers = {}  # {sender: {"timestamp": last_updated, "chunks": {id: message}, "batch": total}}
         self.timeout = timeout  # Timeout in seconds for incomplete messages
 
@@ -48,18 +49,10 @@ class MessageStream:
         for key in expired:
             del self.buffers[key]
 
-    @staticmethod
-    def messages_path() -> Path:
-        """
-        Returns the path to the messages.json file.
-        """
-        return Path("/backend/messages/messages.json")
-    
-    @staticmethod
-    def load_messages(path: Path):
-        if not path.is_file():
+    def load_messages(self):
+        if not self._path.is_file():
             return []
-        with open(path, "r") as f:
+        with open(self._path, "r") as f:
             return json.load(f)
 
     def save_message(self, sender: str, message: str, timestamp: int):

@@ -18,7 +18,7 @@ app = Flask(__name__)
 lora.reset()
 lora.set_frequency(433)
 lora.set_tx_power(14)
-
+stream = MessageStream()
 messages_dir = Path("messages")
 messages_file = messages_dir / "messages.json"
 to_send_file = messages_dir / "to_send.json"
@@ -62,7 +62,7 @@ def send_message(message):
 
 @app.route("/api/messages", methods=["GET"])
 def get_messages():
-    return jsonify({"data": MessageStream.load_messages()})
+    return jsonify({"data": stream.load_messages()})
 
 @app.route("/api/checksum")
 def get_checksum():
