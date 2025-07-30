@@ -19,7 +19,7 @@ lora.reset()
 lora.set_frequency(433)
 lora.set_tx_power(14)
 
-messages_dir = Path("messages")
+messages_dir = Path("backend/messages")
 messages_file = messages_dir / "messages.json"
 to_send_file = messages_dir / "to_send.json"
 stream = MessageStream(timeout=120)
