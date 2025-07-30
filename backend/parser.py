@@ -354,6 +354,18 @@ class Parser:
         return [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
 
     @staticmethod
+    def chunk_message(message, max_length=240):
+        if len(message) <= max_length:
+            return [{"id": 1, "text": message}]
+        
+        chunks = []
+        lines = [message[i:i+max_length] for i in range(0, len(message), max_length)]
+        for idx, line in enumerate(lines, 1):
+            chunks.append({"id": idx, "text": f"|c{idx}|{line}"})
+        return chunks
+
+
+    @staticmethod
     def reassemble_chunks(chunks: dict, batch_size: int) -> str:
         """
         Reassembles a message from ordered chunk data.
