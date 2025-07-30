@@ -3,7 +3,8 @@ import json
 import time
 import os
 from parser import Parser
-from pyLoRa import LoRa  # Your custom driver
+from pyLoRa.configure import run_checks
+from pyLoRa.lora_module import LoRa
 from datetime import datetime
 
 FILENAME = "messages/messages.json"
