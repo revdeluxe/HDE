@@ -1,6 +1,6 @@
 # parser.py
 
-import hashlib, json, re
+import hashlib, json, re, os
 from pathlib import Path
 from datetime import datetime, time
 
