@@ -43,10 +43,10 @@ async def auto_save_message(data: dict):
             f.seek(0)
             json.dump(messages, f)
 
-@app.post("/api/working_directory")
-async def working_directory(request: Request):
-    current_directory = Path.cwd()
-    return JSONResponse(content={"current_directory": str(current_directory)})
+@app.get("/api/working_directory")
+async def get_working_directory():
+    import os
+    return {"cwd": os.getcwd()}
 
 @app.get("/service-offline.html")
 async def service_offline():
