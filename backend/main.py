@@ -8,21 +8,13 @@ import os
 import atexit
 import aiofiles
 import asyncio
-from threading import Thread
-import threading
-from listener_thread import listen_lora_forever
+from backend.lora_engine import LoRaEngine
 from parser import Parser
 from stream import MessageStream
-from pyLoRa.configure import run_checks
-from pyLoRa.lora_module import LoRa
 from threading import Lock
-lora = LoRa()
 # Initialize Flask and LoRa
 app = Flask(__name__)
 file_lock = Lock()
-lora.reset()
-lora.set_frequency(433)
-lora.set_tx_power(14)
 stream = MessageStream()
 messages_dir = Path("messages")
 messages_file = messages_dir / "messages.json"
@@ -30,45 +22,20 @@ to_send_file = messages_dir / "to_send.json"
 save_dir = Path("messages/saves")
 checksum = Parser.updated_messages_checksum(messages_file)
 from_user = Parser.parse_username(checksum)
+lora_engine = LoRaEngine()
+
 
 @app.before_first_request
-def start_lora_listener():
-    t = threading.Thread(target=listen_lora_forever, daemon=True)
-    t.start()
+def begin_lora_rx():
+    lora_engine.start()
 
-def send_via_lora(message: str):
-    batch_id = Parser.generate_batch_id(to_send_file)
-    chunk_id = Parser.generate_chunk_id(to_send_file)
-    timestamp = int(time.time())
-
-    # Prepare single or multiple chunks
-    chunks = Parser.split_into_chunks(message) if Parser.should_it_be_in_batches(message) else [message]
-
-    prepared_data = {
-        "from": from_user,
-        "timestamp": timestamp,
-        "batch": batch_id,
-        "chunk": []
-    }
-
-    for i, c in enumerate(chunks, start=1):
-        prepared_data["chunk"].append({
-            "id": i,
-            "message": c
-        })
-
-    encoded_message = Parser.prepare(prepared_data)
-
-    # Send each chunked message (could also send full JSON if small enough)
-    lora.set_mode_tx()
-    if isinstance(encoded_message, list):
-        for msg in encoded_message:
-            lora.send(msg)
-    else:
-        lora.send(encoded_message)
-
-    return jsonify({"status": "ok"})
-
+@app.route("/api/send", methods=["POST"])
+def send_lora():
+    message = request.json.get("message", "")
+    if message:
+        lora_engine.queue_message(message)
+        return jsonify({"status": "ok", "queued": message})
+    return jsonify({"error": "No message"}), 400
 
 def parse_heard_data(data: str):
     """
@@ -141,18 +108,6 @@ async def auto_save_message_async(data: dict):
         await f.write(json.dumps(messages))
         await f.truncate()
 
-def get_lora_state():
-    """
-    Returns the current LoRa state.
-    """ 
-    return {
-        "mode": lora.get_mode(),
-        "frequency": lora.get_frequency(),
-        "tx_power": lora.get_tx_power(),
-        "rssi": lora.get_rssi(),
-        "snr": lora.get_snr()
-    }
-
 @app.route("/api/working_directory")
 def get_working_directory():
     return jsonify({"cwd": os.getcwd()})
@@ -160,6 +115,11 @@ def get_working_directory():
 @app.route("/api/send", methods=["POST"])
 def send_message():
     try:
+        data = request.json
+        from_user = data.get("from", "unknown")
+        raw_message = data.get("message", "").strip()
+        if not from_user or not raw_message:
+            return jsonify({"error": "Missing sender or message"}), 400
         data = request.json
         from_user = data.get("from", "unknown")
         raw_message = data.get("message", "").strip()
@@ -174,17 +134,13 @@ def send_message():
         chunks = Parser.chunk_message(raw_message)  # Returns a list of {id, text}
 
         for i, chunk in enumerate(chunks, start=1):
-            formatted = f"from={from_user};timestamp={timestamp};chunk_batch={batch_id};chunk_id={i};message={chunk['text']};"
+            formatted = Parser.format_lora_chunk(from_user, timestamp, batch_id, i, chunk['text'])
             print(f"[DEBUG] Sending chunk: {formatted}")
-            lora.send(formatted.encode("utf-8"))
-            Parser.save_chunk_data(from_user, timestamp, batch_id, i, chunk['text'])
+            lora_engine.queue_message(formatted)
+            Parser.save_chunk_data(from_user, timestamp, batch_id, i, chunk['text'])  # Optional
 
-        # Attempt reassembly
-        if len(chunks) == 1:
-            final_message = raw_message
-        else:
-            final_message = Parser.reassemble_chunks(from_user, timestamp, batch_id)
-
+        # Final CRC and response
+        final_message = raw_message if len(chunks) == 1 else Parser.reassemble_chunks(from_user, timestamp, batch_id)
         checksum = Parser.calculate_crc(final_message)
         print(f"[INFO] Message sent. CRC: {checksum}")
 
@@ -197,8 +153,6 @@ def send_message():
     except Exception as e:
         print(f"[ERROR] Send failed: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
-
-
 
 @app.route("/api/messages", methods=["GET"])
 def get_messages():
@@ -220,7 +174,9 @@ def source_messages(filename):
     messages = asyncio.run(read())
     return jsonify({"data": messages})
 
-
+@app.route("/api/state", methods=["GET"])
+def get_state():
+    return jsonify({"state": lora_engine.get_state()})
 
 @app.route("/api/checksum")
 def get_checksum():

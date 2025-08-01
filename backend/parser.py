@@ -107,7 +107,28 @@ class Parser:
         except Exception as e:
             result["error"] = str(e)
             return result
-        
+
+
+    @staticmethod
+    def format_message(self, parsed: dict, is_chunked: bool) -> str:
+        """
+        Formats a parsed message back to a string.
+        """
+        if not parsed["valid"]:
+            return None
+
+        fields = [
+            f"from:{parsed['from']}",
+            f"timestamp:{parsed['timestamp']}",
+            f"chunk_batch:{parsed['batch']}"
+        ]
+
+        for chunk in parsed["chunk"]:
+            fields.append(f"chunk_id:{chunk['id']}|message:{chunk['message']}")
+
+        return "|".join(fields)
+
+
     @staticmethod
     def parse_username(checksum: str) -> str:
         """
@@ -362,15 +383,12 @@ class Parser:
         return [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
 
     @staticmethod
-    def chunk_message(message, max_length=240):
-        if len(message) <= max_length:
-            return [{"id": 1, "text": message}]
-        
+    def chunk_message(message, max_length=220):
         chunks = []
-        lines = [message[i:i+max_length] for i in range(0, len(message), max_length)]
-        for idx, line in enumerate(lines, 1):
-            chunks.append({"id": idx, "text": f"|c{idx}|{line}"})
+        for i in range(0, len(message), max_length):
+            chunks.append({"id": (i // max_length) + 1, "text": message[i:i + max_length]})
         return chunks
+
 
 
     @staticmethod
