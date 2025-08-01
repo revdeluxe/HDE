@@ -8,7 +8,7 @@ import os
 import atexit
 import aiofiles
 import asyncio
-from backend.lora_engine import LoRaEngine
+from lora_engine import LoRaEngine
 from parser import Parser
 from stream import MessageStream
 from threading import Lock
