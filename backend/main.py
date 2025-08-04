@@ -27,7 +27,8 @@ lora_engine = LoRaEngine()
 
 @app.before_first_request
 def begin_lora_rx():
-    lora_engine.start()
+    lora_engine.get_state()  # Ensure LoRa is initialized
+    lora_engine.set_state("receive")  # Start in receive mode
 
 @app.route("/api/send", methods=["POST"])
 def send_lora():
@@ -183,8 +184,7 @@ def get_checksum():
     return jsonify({"checksum": checksum})
 
 def cleanup_gpio():
-        if hasattr(lora, "gpio"):
-            lora.gpio.cleanup()
+        lora_engine.shutdown()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)

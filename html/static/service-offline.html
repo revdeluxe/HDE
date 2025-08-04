@@ -16,15 +16,22 @@
             <article>
                 <h3>STEP 1: Launch the web backend</h3>
                 <p>Open terminal and run:</p>
-                <pre><code>python main.py</code></pre>
+                <pre><code>sudo python main.py</code></pre>
                 <p>You'll see "Listening on port 5000"</p>
             </article>
             <article>
                 <h3>STEP 2: Verify LoRa Interface</h3>
-                <p>The backend will auto-sync and attempt to discover nearby LoRa endpoints.</p>
-                <p>Look for messages like:</p>
-                <pre><code>[✅] Endpoint found: Device123</code></pre>
-                <p>If you see <code>[❌]</code>, double-check LoRa module is connected and powered.</p>
+                <p>The backend will automatically detect the LoRa interface.</p>
+                <p>Check the status bar for:</p>
+                <ul>
+                    <li>👤 Username</li>
+                    <li>📶 RSSI</li>
+                    <li>📡 SNR</li>
+                    <li>🔄 RX Mode (should be ON)</li>
+                    <li>🗂️ TX Queue Depth</li>
+                    <li>🔄 Server State (should be "Listening")</li>
+                </ul>
+                <p>If any status is missing, check the backend logs for errors.</p>
             </article>
             <article>
                 <h3>STEP 3: Use the Web Interface</h3>
