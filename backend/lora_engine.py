@@ -40,8 +40,10 @@ class LoRaEngine:
 
     def _do_receive(self):
         self.lora.set_mode_rx()
-        if self.lora.received_packet():
-            raw = self.lora.read_payload()
+        if self.lora.receive():
+            raw = self.lora.read()
+            textformatted = raw.decode('utf-8', errors='ignore')
+            print("[LoRaEngine] Received:", textformatted)
             print("[LoRaEngine] Received:", raw)
             self.message_queue.put(raw)
         time.sleep(0.2)
@@ -53,7 +55,7 @@ class LoRaEngine:
             self.set_state("idle")
             return
         self.lora.set_mode_tx()
-        self.lora.write_payload(message.encode())
+        self.lora.send(message.encode())
         print("[LoRaEngine] Sent:", message)
         time.sleep(0.5)
         self.set_state("receive")  # Auto-switch back to RX
