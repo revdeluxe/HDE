@@ -71,6 +71,8 @@ class LoRaEngine:
     def queue_message(self, msg):
         self.message_queue.put(msg)
         self.set_state("transmit")
+        self.set_state("receive")  # Ensure we are ready to receive after sending
+        return {"status": "queued", "message": msg}
 
     def get_messages(self):
         items = []
