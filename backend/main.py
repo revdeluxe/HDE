@@ -92,8 +92,30 @@ def parse_send_data(data: dict):
         "chunk_id": chunk_id,
         "chunk_message": chunk_message
     }
+    
+def save_message_manually(entry):
+    filepath = "messages.json"
+    try:
+        # Load existing messages
+        if os.path.exists(filepath):
+            with open(filepath, "r", encoding="utf-8") as f:
+                messages = json.load(f)
+        else:
+            messages = []
 
-async def auto_save_message_async(data: dict):
+        # Append new message
+        messages.append(entry)
+
+        # Save back
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(messages, f, indent=2)
+
+    except Exception as e:
+        print(f"[ERROR] Saving message failed: {e}")
+
+
+
+def auto_save_message_async(data: dict):
     messages_dir.mkdir(parents=True, exist_ok=True)
 
     if not messages_file.exists():
@@ -101,17 +123,17 @@ async def auto_save_message_async(data: dict):
 
     mdata = Parser.prepare(data)
 
-    async with aiofiles.open(messages_file, "r+") as f:
-        content = await f.read()
+    with open(messages_file, "r+") as f:
+        content = f.read()
         try:
             messages = json.loads(content)
         except json.JSONDecodeError:
             messages = []
         messages.append(mdata)
 
-        await f.seek(0)
-        await f.write(json.dumps(messages))
-        await f.truncate()
+        f.seek(0)
+        f.write(json.dumps(messages))
+        f.truncate()
 
 @app.route("/api/working_directory")
 def get_working_directory():
@@ -127,40 +149,28 @@ def send_message():
     if not from_field or not message or not checksum:
         return jsonify({"error": "Missing fields"}), 400
 
-    # Structure the message
-    timestamp = int(time.time())
+    # Structure the new message
     new_entry = {
         "from": from_field,
-        "timestamp": timestamp,
-        "chunk_batch": 1,
+        "timestamp": int(time.time()),
+        "chunk_batch": Parser.generate_batch_id(),
         "chunk": [
             {
-                "id": 1,
+                "id": Parser.generate_chunk_id(),
                 "message": message
             }
         ]
     }
 
-    # Load current data from messages.json
-    try:
-        with open("storage/messages.json", "r") as f:
-            messages = json.load(f).get("data", [])
-    except (FileNotFoundError, json.JSONDecodeError):
-        messages = []
+    # Manually save the message to a log (append style)
+    save_message_manually(new_entry)
 
-    # Append and save back
-    messages.append(new_entry)
-    try:
-        with open("storage/messages.json", "w") as f:
-            json.dump({"data": messages}, f, indent=2)
-    except Exception as e:
-        return jsonify({"error": f"Failed to save message: {str(e)}"}), 500
-
-    # Continue with the send (LoRa or mock)
+    # Simulate LoRa send (or place real send function here)
     print(f"[INFO] Sending via LoRa: {message}")
-    # You may add your actual LoRa send code here
 
     return jsonify({"status": "success", "sent": new_entry}), 200
+
+
 
 @app.route("/api/messages/<filename>", methods=["GET"])
 def source_messages(filename):
