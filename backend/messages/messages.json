@@ -1,29 +1,3 @@
-[
-  {
-    "from": "HDE Team",
-    "timestamp": 1625251200,
-    "chunk_batch": 1,
-    "chunk": [{
-      "id": 1,
-      "message": "Hello HDE Users, we have some updates for you!"
-    }]
-  },
-  {
-    "from": "HDE Team",
-    "timestamp": 1625251200,
-    "chunk_batch": 1,
-    "chunk": [{
-      "id": 2,
-      "message": "Can't see your messages? Check Offline Services for instructions."
-    }]
-  },
-  {
-    "from": "HDE Team",
-    "timestamp": 1625251200,
-    "chunk_batch": 1,
-    "chunk": [{
-      "id": 3,
-      "message": "New features coming soon! Stay tuned."
-    }]
-  }
-]
+{"from": "HDE Team", "timestamp": 1625251200, "chunk_batch": 1, "chunk": [{"id": 1, "message": "Hello HDE Users, we have some updates for you!"}]}
+{"from": "HDE Team", "timestamp": 1625251200, "chunk_batch": 1, "chunk": [{"id": 2, "message": "Can't see your messages? Check Offline Services for instructions."}]}
+{"from": "HDE Team", "timestamp": 1625251200, "chunk_batch": 1, "chunk": [{"id": 3, "message": "New features coming soon! Stay tuned."}]}
