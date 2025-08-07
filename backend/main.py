@@ -119,57 +119,49 @@ def get_working_directory():
 
 @app.route("/api/send", methods=["POST"])
 def send_message():
+    data = request.get_json()
+    from_field = data.get("from")
+    message = data.get("message")
+    checksum = data.get("checksum")
+
+    if not from_field or not message or not checksum:
+        return jsonify({"error": "Missing fields"}), 400
+
+    # Structure the message
+    timestamp = int(time.time())
+    new_entry = {
+        "from": from_field,
+        "timestamp": timestamp,
+        "chunk_batch": 1,
+        "chunk": [
+            {
+                "id": 1,
+                "message": message
+            }
+        ]
+    }
+
+    # Load current data from messages.json
     try:
-        from_field = request.json.get("from")
-        raw_message = request.json.get("message")
-        checksum = request.json.get("checksum")  # Optional: for verification
+        with open("storage/messages.json", "r") as f:
+            messages = json.load(f).get("data", [])
+    except (FileNotFoundError, json.JSONDecodeError):
+        messages = []
 
-        if not raw_message:
-            return jsonify({"status": "error", "error": "No message provided."}), 400
-        if not from_field:
-            return jsonify({"status": "error", "error": "No sender provided."}), 400
-
-        # Parse and validate message (already includes CRC check)
-        parsed = Parser.parse_message(raw_message)
-
-        if not parsed["valid"]:
-            return jsonify({"status": "error", "error": parsed.get("error", "Invalid message")}), 400
-
-        # Replace 'from' field with client-supplied one (optional)
-        parsed["from"] = from_field
-
-        formatted = {
-            "from": parsed["from"],
-            "timestamp": parsed["timestamp"],
-            "chunk_batch": parsed["batch"],
-            "chunk": parsed["chunk"]
-        }
-
-        # Save to storage/messages.json
-        try:
-            if not os.path.exists("storage"):
-                os.makedirs("storage")
-
-            storage_path = "storage/messages.json"
-
-            if os.path.exists(storage_path):
-                with open(storage_path, "r") as f:
-                    existing = json.load(f)
-            else:
-                existing = []
-
-            existing.append(formatted)
-
-            with open(storage_path, "w") as f:
-                json.dump(existing, f, indent=2)
-
-        except Exception as e:
-            return jsonify({"status": "error", "error": f"Failed to save message: {e}"}), 500
-
-        return jsonify({"status": "ok", "data": formatted}), 200
-
+    # Append and save back
+    messages.append(new_entry)
+    try:
+        with open("storage/messages.json", "w") as f:
+            json.dump({"data": messages}, f, indent=2)
     except Exception as e:
-        return jsonify({"status": "error", "error": str(e)}), 500
+        return jsonify({"error": f"Failed to save message: {str(e)}"}), 500
+
+    # Continue with the send (LoRa or mock)
+    print(f"[INFO] Sending via LoRa: {message}")
+    # You may add your actual LoRa send code here
+
+    return jsonify({"status": "success", "sent": new_entry}), 200
+
 
 
 
