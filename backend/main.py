@@ -23,20 +23,8 @@ save_dir = Path("messages/saves")
 checksum = Parser.updated_messages_checksum(messages_file)
 from_user = Parser.parse_username(checksum)
 lora_engine = LoRaEngine()
-
-
-@app.before_first_request
-def begin_lora_rx():
-    lora_engine.get_state()  # Ensure LoRa is initialized
-    lora_engine.set_state("receive")  # Start in receive mode
-
-@app.route("/api/send", methods=["POST"])
-def send_lora():
-    message = request.json.get("message", "")
-    if message:
-        lora_engine.queue_message(message)
-        return jsonify({"status": "ok", "queued": message})
-    return jsonify({"error": "No message"}), 400
+lora_engine.get_state()
+lora_engine.set_state("idle")
 
 def parse_heard_data(data: str):
     """
@@ -141,6 +129,7 @@ def get_working_directory():
 
 @app.route("/api/send", methods=["POST"])
 def send_message():
+    lora_engine.get_state()
     data = request.get_json()
     from_field = data.get("from")
     message = data.get("message")
@@ -161,7 +150,7 @@ def send_message():
             }
         ]
     }
-
+    lora_engine.queue_message(new_entry)
     # Manually save the message to a log (append style)
     save_message_manually(new_entry)
 
