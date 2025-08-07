@@ -162,15 +162,6 @@ def send_message():
 
     return jsonify({"status": "success", "sent": new_entry}), 200
 
-
-
-
-@app.route("/api/messages", methods=["GET"])
-def get_messages():
-    # This should return recent messages from storage/logs
-    messages = stream.load_messages()  # Your function here
-    return jsonify({"data": messages})
-
 @app.route("/api/messages/<filename>", methods=["GET"])
 def source_messages(filename):
     path = os.path.join("messages", filename)
