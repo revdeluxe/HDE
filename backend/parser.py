@@ -127,7 +127,10 @@ class Parser:
             fields.append(f"chunk_id:{chunk['id']}|message:{chunk['message']}")
 
         return "|".join(fields)
-
+    
+    @staticmethod
+    def format_chunk(chunk_id, message):
+        return f"|c{chunk_id}|{message}"
 
     @staticmethod
     def parse_username(checksum: str) -> str:

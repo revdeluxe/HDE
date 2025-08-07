@@ -69,10 +69,14 @@ def extract_chunk_info(chunks):
     return (chunks[0].get("id", 0), chunks[0].get("message", ""))
 
 
-def parse_send_data(data: str):
+def parse_send_data(data: dict):
     """
     Parses the data to be sent via LoRa and returns a structured dictionary.
     """
+    print(f"[DEBUG] Parsing send data: {data}")
+    if not isinstance(data, dict):
+        print("[ERROR] Invalid data format, expected a dictionary.")
+        return data
     parsed = Parser.parse_message(data)
     if not parsed["valid"]:
         return None
@@ -116,44 +120,58 @@ def get_working_directory():
 @app.route("/api/send", methods=["POST"])
 def send_message():
     try:
-        data = request.json
-        from_user = data.get("from", "unknown")
-        raw_message = data.get("message", "").strip()
-        if not from_user or not raw_message:
-            return jsonify({"error": "Missing sender or message"}), 400
-        data = request.json
-        from_user = data.get("from", "unknown")
-        raw_message = data.get("message", "").strip()
-        print(f"[DEBUG] Received message from {from_user}: {raw_message}")
+        from_field = request.json.get("from")
+        raw_message = request.json.get("message")
+        checksum = request.json.get("checksum")  # Optional: for verification
+
         if not raw_message:
-            return jsonify({"status": "error", "message": "No message provided"}), 400
+            return jsonify({"status": "error", "error": "No message provided."}), 400
+        if not from_field:
+            return jsonify({"status": "error", "error": "No sender provided."}), 400
 
-        timestamp = int(time.time())
-        batch_id = 1  # Increment or generate uniquely if needed
+        # Parse and validate message (already includes CRC check)
+        parsed = Parser.parse_message(raw_message)
 
-        # Chunk message if needed (you can define chunk_message())
-        chunks = Parser.chunk_message(raw_message)  # Returns a list of {id, text}
+        if not parsed["valid"]:
+            return jsonify({"status": "error", "error": parsed.get("error", "Invalid message")}), 400
 
-        for i, chunk in enumerate(chunks, start=1):
-            formatted = Parser.format_lora_chunk(from_user, timestamp, batch_id, i, chunk['text'])
-            print(f"[DEBUG] Sending chunk: {formatted}")
-            lora_engine.queue_message(formatted)
-            Parser.save_chunk_data(from_user, timestamp, batch_id, i, chunk['text'])  # Optional
+        # Replace 'from' field with client-supplied one (optional)
+        parsed["from"] = from_field
 
-        # Final CRC and response
-        final_message = raw_message if len(chunks) == 1 else Parser.reassemble_chunks(from_user, timestamp, batch_id)
-        checksum = Parser.calculate_crc(final_message)
-        print(f"[INFO] Message sent. CRC: {checksum}")
+        formatted = {
+            "from": parsed["from"],
+            "timestamp": parsed["timestamp"],
+            "chunk_batch": parsed["batch"],
+            "chunk": parsed["chunk"]
+        }
 
-        return jsonify({
-            "status": "ok",
-            "message": final_message,
-            "checksum": checksum
-        }), 200
+        # Save to storage/messages.json
+        try:
+            if not os.path.exists("storage"):
+                os.makedirs("storage")
+
+            storage_path = "storage/messages.json"
+
+            if os.path.exists(storage_path):
+                with open(storage_path, "r") as f:
+                    existing = json.load(f)
+            else:
+                existing = []
+
+            existing.append(formatted)
+
+            with open(storage_path, "w") as f:
+                json.dump(existing, f, indent=2)
+
+        except Exception as e:
+            return jsonify({"status": "error", "error": f"Failed to save message: {e}"}), 500
+
+        return jsonify({"status": "ok", "data": formatted}), 200
 
     except Exception as e:
-        print(f"[ERROR] Send failed: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
 
 @app.route("/api/messages", methods=["GET"])
 def get_messages():
