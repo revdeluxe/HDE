@@ -173,7 +173,7 @@ def source_messages(filename):
             return [json.loads(line.strip()) for line in lines if line.strip()]
 
     lora_state = lora_engine.get_state()
-
+    print(f"[DEBUG] LoRa state: {lora_state}")
     messages = asyncio.run(read())
     return jsonify({"lora": lora_state,"data": messages})
 
