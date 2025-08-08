@@ -172,9 +172,6 @@ def source_messages(filename):
     print(f"[DEBUG] Reading messages from {path}")
     if not os.path.isfile(path):
         return jsonify({"error": "File not found"}), 404
-    print(f"[DEBUG] File content: {path}")
-    if not path.endswith(".json"):
-        return jsonify({"error": "Invalid file type"}), 400
     
     async def read():
         async with aiofiles.open(path, mode='r') as f:
@@ -184,6 +181,7 @@ def source_messages(filename):
     lora_state = lora_engine.get_state()
     print(f"[DEBUG] LoRa state: {lora_state}")
     messages = asyncio.run(read())
+    print(f"[DEBUG] Messages read: {len(messages)} entries")
     return jsonify({"lora": lora_state,"data": messages})
 
 @app.route("/api/state", methods=["GET"])
