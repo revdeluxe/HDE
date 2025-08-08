@@ -150,8 +150,10 @@ def send_message():
             }
         ]
     }
+    print(f"[DEBUG] New entry to send: {new_entry}")
     lora_engine.queue_message(new_entry)
     # Manually save the message to a log (append style)
+    print(f"[DEBUG] Saving message: {new_entry}")
     save_message_manually(new_entry)
 
     # Simulate LoRa send (or place real send function here)
