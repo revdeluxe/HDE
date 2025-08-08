@@ -172,8 +172,10 @@ def source_messages(filename):
             lines = await f.readlines()
             return [json.loads(line.strip()) for line in lines if line.strip()]
 
+    lora_state = lora_engine.get_state()
+
     messages = asyncio.run(read())
-    return jsonify({"data": messages})
+    return jsonify({"lora": lora_state,"data": messages})
 
 @app.route("/api/state", methods=["GET"])
 def get_state():
