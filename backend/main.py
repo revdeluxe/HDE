@@ -169,6 +169,13 @@ def source_messages(filename):
     if not os.path.exists(path):
         return jsonify({"data": []}), 200
 
+    print(f"[DEBUG] Reading messages from {path}")
+    if not os.path.isfile(path):
+        return jsonify({"error": "File not found"}), 404
+    print(f"[DEBUG] File content: {path}")
+    if not path.endswith(".json"):
+        return jsonify({"error": "Invalid file type"}), 400
+    
     async def read():
         async with aiofiles.open(path, mode='r') as f:
             lines = await f.readlines()
