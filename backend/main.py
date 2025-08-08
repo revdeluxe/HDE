@@ -82,24 +82,15 @@ def parse_send_data(data: dict):
     }
     
 def save_message_manually(entry):
-    filepath = "messages.json"
+    filepath = "messages/messages.json"  # match the reader path
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
     try:
-        # Load existing messages
-        if os.path.exists(filepath):
-            with open(filepath, "r", encoding="utf-8") as f:
-                messages = json.load(f)
-        else:
-            messages = []
-
-        # Append new message
-        messages.append(entry)
-
-        # Save back
-        with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(messages, f, indent=2)
-
+        with open(filepath, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry) + "\n")
+        print(f"[DEBUG] Appended new message to {filepath}")
     except Exception as e:
         print(f"[ERROR] Saving message failed: {e}")
+
 
 
 
